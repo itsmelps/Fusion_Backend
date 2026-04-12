@@ -2,9 +2,8 @@
 selectors.py — Read-only database query helpers for the scholarships module.
 
 Ref: S1 (4B Refactoring Plan)
-Purpose: Centralise all read/select queryset operations so that views.py
-         contains no raw .objects. calls for reads. Write operations remain
-         in views.py until a services.py layer is introduced.
+Purpose: Centralise read/select queryset operations. Write operations live
+         in services.py; legacy template views remain in web_views.py.
 """
 
 import datetime
@@ -149,3 +148,35 @@ def get_assistant_designation():
 
 def get_holds_designation(designation):
     return HoldsDesignation.objects.get(designation=designation)
+
+
+def user_holds_designation_name(user, designation_name):
+    return HoldsDesignation.objects.filter(
+        user=user,
+        designation__name=designation_name,
+    ).exists()
+
+
+def is_spacs_convenor(user):
+    return user_holds_designation_name(user, 'spacsconvenor')
+
+
+def is_spacs_assistant(user):
+    return user_holds_designation_name(user, 'spacsassistant')
+
+
+def get_award_by_id(pk):
+    return Award_and_scholarship.objects.get(pk=pk)
+
+
+def get_previous_winners_by_award_id(programme, year, award_id):
+    """
+    Match winners by the student's current programme (authoritative) as well as
+    the denormalized Previous_winner.programme (legacy rows defaulted to B.Tech).
+    """
+    return Previous_winner.objects.select_related('student', 'student__id', 'award_id').filter(
+        year=year,
+        award_id_id=award_id,
+    ).filter(
+        Q(student__programme=programme) | Q(programme=programme),
+    )

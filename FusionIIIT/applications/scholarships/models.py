@@ -111,6 +111,11 @@ class Mcm(models.Model):
     college_name = models.CharField(max_length=30, null=True)
     income_certificate = models.FileField(null=True, blank=True)
     forms = models.FileField(null=True, blank=True)
+    marksheet = models.FileField(null=True, blank=True)
+    fee_receipt = models.FileField(null=True, blank=True)
+    bank_details = models.FileField(null=True, blank=True)
+    affidavit = models.FileField(null=True, blank=True)
+    aadhar_card = models.FileField(null=True, blank=True)
     status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES, default='INCOMPLETE')
     student = models.ForeignKey(Student,
                                 on_delete=models.CASCADE, related_name='mcm_info')
