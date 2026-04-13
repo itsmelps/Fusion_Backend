@@ -42,17 +42,13 @@ def get_all_releases():
 
 
 def get_active_mcm_releases():
-    today = datetime.datetime.today().strftime('%Y-%m-%d')
     return Release.objects.filter(
-        Q(startdate__lte=today, enddate__gte=today),
         award='Merit-cum-Means Scholarship'
     )
 
 
 def get_active_convocation_releases():
-    today = datetime.datetime.today().strftime('%Y-%m-%d')
     return Release.objects.filter(
-        Q(startdate__lte=today, enddate__gte=today),
         award='Convocation Medals'
     )
 

@@ -39,8 +39,8 @@ def user_logged_in_middleware(get_response):
                 first_designation = designation[0]
                 module_access = ModuleAccess.objects.filter(designation=first_designation).first()
                 
+                access_rights = {}
                 if module_access:
-                    access_rights = {}
     
                     field_names = [field.name for field in ModuleAccess._meta.get_fields() if field.name not in ['id', 'designation']]
     
