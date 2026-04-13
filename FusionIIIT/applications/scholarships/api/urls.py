@@ -26,4 +26,22 @@ urlpatterns = [
     path('directorgold_show/', views.directorgold_show),
     path('directorsilver_show/', views.directorsilver_show),
     path('proficiencydm_show/', views.proficiencydm_show),
+    # T3: Withdrawal
+    path('withdraw/', views.withdraw_application),
+    # T4: Withdrawal acknowledgement
+    path('withdrawals/', views.list_withdrawals),
+    path('withdrawals/acknowledge/', views.acknowledge_withdrawal),
+    # T5: PDF download
+    path('download-application/', views.download_application_pdf),
+    # T6: Forward to convener
+    path('forward-application/', views.forward_application),
+    # T7: Draft auto-save
+    path('draft/save/', views.save_draft),
+    path('draft/get/', views.get_draft),
+    path('draft/delete/', views.delete_draft),
+    # T8: Catalog versioning
+    path('create-award-new/', views.create_award),
+    path('retire-award/', views.retire_award),
+    # T10: Document reuse
+    path('my-documents/', views.list_student_documents),
 ]

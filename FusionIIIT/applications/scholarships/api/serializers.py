@@ -6,12 +6,13 @@ from applications.scholarships.models import Award_and_scholarship
 class AwardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Award_and_scholarship
-        fields = ('id', 'award_name', 'catalog')
+        fields = ('id', 'award_name', 'catalog', 'publish_flag', 'version', 'cpi_cutoff', 'income_ceiling', 'eligible_programme')
 
 
 class CatalogUpdateSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     catalog = serializers.CharField(allow_blank=True)
+    publish = serializers.BooleanField(required=False, allow_null=True)
 
 
 class PreviousWinnersRequestSerializer(serializers.Serializer):

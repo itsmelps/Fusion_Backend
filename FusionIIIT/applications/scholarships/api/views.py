@@ -1,3 +1,5 @@
+import datetime
+
 from jsonschema import ValidationError as JsonSchemaValidationError
 
 from rest_framework import status
@@ -129,6 +131,19 @@ def mcm_status_update(request):
     ser.is_valid(raise_exception=True)
     pk = ser.validated_data['id']
     new_status = services.map_mcm_status_from_client(ser.validated_data['status'])
+    
+    try:
+        mcm = Mcm.objects.get(pk=pk)
+        student_user = mcm.student.id.user
+        # Send notification when status changes
+        try:
+            from notification.views import scholarship_portal_notif
+            scholarship_portal_notif(request.user, student_user, f'mcm_{new_status.lower()}')
+        except Exception:
+            pass
+    except Mcm.DoesNotExist:
+        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+    
     updated = Mcm.objects.filter(pk=pk).update(status=new_status)
     if not updated:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -239,7 +254,11 @@ def award_catalog_update(request):
     ser = CatalogUpdateSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     try:
-        services.update_award_catalog(ser.validated_data['id'], ser.validated_data['catalog'])
+        services.update_award_catalog(
+            ser.validated_data['id'],
+            ser.validated_data['catalog'],
+            publish=ser.validated_data.get('publish')
+        )
     except Award_and_scholarship.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'detail': 'ok'})
@@ -297,3 +316,362 @@ def proficiencydm_show(request):
         return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
     student = request.user.extrainfo.student
     return Response(services.student_status_rows(selectors.get_proficiency_for_student(student)))
+
+
+# T3: Withdrawal Feature
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def withdraw_application(request):
+    """UC-004: Student withdraws a pending application. BR-009: only before review. BR-010: only owner."""
+    if not _student(request.user):
+        return Response({'detail': 'Students only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    scholarship_type = request.data.get('scholarship_type')
+    application_id = request.data.get('application_id')
+    reason = (request.data.get('reason') or '').strip()
+    
+    if not reason:
+        return Response({'detail': 'A withdrawal reason is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    model_map = {'mcm': Mcm, 'gold': Director_gold, 'silver': Director_silver, 'dm': Proficiency_dm}
+    Model = model_map.get(scholarship_type)
+    if not Model:
+        return Response({'detail': 'Unknown scholarship type.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        app = Model.objects.get(pk=application_id)
+    except Model.DoesNotExist:
+        return Response({'detail': 'Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    student = request.user.extrainfo.student
+    
+    # BR-SPACS-010: ownership check
+    if app.student != student:
+        return Response({'detail': 'You can only withdraw your own application.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # BR-SPACS-009: only before review starts (INCOMPLETE = not yet verified by assistant)
+    if app.status in ('Complete', 'Accept', 'Reject'):
+        return Response(
+            {'detail': f'Withdrawal not allowed. Your application status is "{app.status}". '
+                       'You can only withdraw before the SPACS office begins review.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Create withdrawal record (for acknowledgement in UC-005)
+    from applications.scholarships.models import Withdrawal
+    Withdrawal.objects.create(
+        scholarship_type=scholarship_type,
+        application_id=application_id,
+        student=student,
+        reason=reason,
+    )
+    
+    # Delete the application
+    app.delete()
+    
+    return Response({'detail': 'Your withdrawal request has been submitted and the application removed.'})
+
+
+# T4: Withdrawal Acknowledgement
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def list_withdrawals(request):
+    """UC-005: SPACS staff views pending withdrawal requests."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    from applications.scholarships.models import Withdrawal
+    pending = Withdrawal.objects.filter(acknowledged=False).select_related('student__id__user')
+    data = [
+        {
+            'id': w.id,
+            'student_name': w.student.id.user.get_full_name() or w.student.id.user.username,
+            'student_id': str(w.student_id),
+            'scholarship_type': w.get_scholarship_type_display(),
+            'scholarship_type_key': w.scholarship_type,
+            'application_id': w.application_id,
+            'reason': w.reason,
+            'requested_at': w.requested_at.strftime('%Y-%m-%d %H:%M'),
+        }
+        for w in pending
+    ]
+    return Response(data)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def acknowledge_withdrawal(request):
+    """UC-005: SPACS Assistant acknowledges a withdrawal to close the request. S-CLOSE sub-flow."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    withdrawal_id = request.data.get('withdrawal_id')
+    try:
+        from applications.scholarships.models import Withdrawal
+        import datetime as dt
+        w = Withdrawal.objects.select_related('student__id__user').get(pk=withdrawal_id, acknowledged=False)
+    except Withdrawal.DoesNotExist:
+        return Response({'detail': 'Withdrawal request not found or already acknowledged.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    w.acknowledged = True
+    w.acknowledged_by = request.user.extrainfo
+    w.acknowledged_at = dt.datetime.now()
+    w.save()
+    
+    # BR-SPACS-008: notify student that withdrawal is acknowledged
+    try:
+        scholarship_portal_notif(request.user, w.student.id.user, 'withdrawal_acknowledged')
+    except Exception:
+        pass
+    
+    return Response({'detail': f'Withdrawal #{withdrawal_id} acknowledged and closed.'})
+
+
+# T5: Application Download/Print
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def download_application_pdf(request):
+    """
+    UC-007 / BR-SPACS-012: Generate and serve a PDF of a scholarship application.
+    Query params: scholarship_type (mcm/gold/silver/dm), application_id (int)
+    """
+    scholarship_type = request.query_params.get('scholarship_type')
+    application_id   = request.query_params.get('application_id')
+    
+    model_map = {'mcm': Mcm, 'gold': Director_gold, 'silver': Director_silver, 'dm': Proficiency_dm}
+    Model = model_map.get(scholarship_type)
+    if not Model:
+        return Response({'detail': 'Unknown scholarship type.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        app = Model.objects.select_related('student__id__user', 'award_id').get(pk=application_id)
+    except Model.DoesNotExist:
+        return Response({'detail': 'Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # BR-SPACS-012: access control — only owning student or SPACS staff
+    is_owner = (
+        _student(request.user) and
+        app.student == request.user.extrainfo.student
+    )
+    if not is_owner and not _spacs_staff(request.user):
+        return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Build context dict with all application fields
+    context = {
+        'app': app,
+        'student': app.student,
+        'award': app.award_id,
+        'scholarship_type': scholarship_type,
+        'generated_at': datetime.date.today().strftime('%d %B %Y'),
+    }
+    
+    # Render HTML template to string, convert to PDF
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
+    html_string = render_to_string('scholarships/application_pdf.html', context)
+    
+    try:
+        from weasyprint import HTML
+        pdf_file = HTML(string=html_string).write_pdf()
+    except Exception as e:
+        return Response({'detail': f'PDF generation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    filename = f"SPACS_{scholarship_type.upper()}_application_{application_id}.pdf"
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+# T6: Explicit Forward Action
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def forward_application(request):
+    """UC-009: SPACS Assistant explicitly forwards a verified application to convener."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    scholarship_type = request.data.get('scholarship_type')
+    application_id   = request.data.get('application_id')
+    notes            = request.data.get('notes', '')
+    
+    model_map = {'mcm': Mcm, 'gold': Director_gold, 'silver': Director_silver, 'dm': Proficiency_dm}
+    Model = model_map.get(scholarship_type)
+    if not Model:
+        return Response({'detail': 'Unknown type.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        app = Model.objects.select_related('student__id__user').get(pk=application_id)
+    except Model.DoesNotExist:
+        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if app.status != 'Complete':
+        return Response(
+            {'detail': 'Only applications with status "Verified" (Complete) can be forwarded.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Create forward record
+    from applications.scholarships.models import ApplicationForward
+    _, created = ApplicationForward.objects.get_or_create(
+        scholarship_type=scholarship_type,
+        application_id=application_id,
+        defaults={'forwarded_by': request.user.extrainfo, 'notes': notes}
+    )
+    if not created:
+        return Response({'detail': 'Application already forwarded.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # BR-SPACS-008: notify student
+    try:
+        scholarship_portal_notif(request.user, app.student.id.user, 'application_forwarded_to_convener')
+    except Exception:
+        pass
+    
+    return Response({'detail': f'Application #{application_id} forwarded to convener.'})
+
+
+# T7: Draft Auto-Save
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def save_draft(request):
+    """BR-SPACS-007: Save or update a form draft for the current student."""
+    if not _student(request.user):
+        return Response({'detail': 'Students only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    award_type = request.data.get('award_type')
+    draft_data = request.data.get('draft_data')
+    
+    if not award_type or draft_data is None:
+        return Response({'detail': 'award_type and draft_data are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    student = request.user.extrainfo.student
+    from applications.scholarships.models import ApplicationDraft
+    import json
+    
+    draft, _ = ApplicationDraft.objects.update_or_create(
+        student=student,
+        award_type=award_type,
+        defaults={'draft_data': json.dumps(draft_data)}
+    )
+    return Response({'detail': 'Draft saved.', 'updated_at': draft.updated_at.isoformat()})
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def get_draft(request):
+    """BR-SPACS-007: Retrieve saved draft for the current student and award type."""
+    if not _student(request.user):
+        return Response({'detail': 'Students only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    award_type = request.query_params.get('award_type')
+    student = request.user.extrainfo.student
+    from applications.scholarships.models import ApplicationDraft
+    import json
+    
+    try:
+        draft = ApplicationDraft.objects.get(student=student, award_type=award_type)
+        return Response({'draft_data': json.loads(draft.draft_data), 'updated_at': draft.updated_at.isoformat()})
+    except ApplicationDraft.DoesNotExist:
+        return Response({'draft_data': None})
+
+
+@api_view(['DELETE'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def delete_draft(request):
+    """BR-SPACS-007: Delete draft after successful submission."""
+    if not _student(request.user):
+        return Response({'detail': 'Students only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    award_type = request.query_params.get('award_type')
+    student = request.user.extrainfo.student
+    from applications.scholarships.models import ApplicationDraft
+    ApplicationDraft.objects.filter(student=student, award_type=award_type).delete()
+    return Response({'detail': 'Draft deleted.'})
+
+
+# T8: Catalog Versioning & Publish Flag
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def create_award(request):
+    """UC-010: Convener creates a new scholarship/award entry."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    award_name = (request.data.get('award_name') or '').strip()
+    catalog    = (request.data.get('catalog') or '').strip()
+    
+    if not award_name:
+        return Response({'detail': 'award_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if Award_and_scholarship.objects.filter(award_name=award_name).exists():
+        return Response({'detail': f'Award "{award_name}" already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    award = Award_and_scholarship.objects.create(
+        award_name=award_name,
+        catalog=catalog,
+        publish_flag=False,  # Start unpublished; convener must explicitly publish
+        version=1,
+    )
+    return Response({'id': award.id, 'award_name': award.award_name, 'detail': 'Award created. Set publish_flag=True to make it live.'})
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def retire_award(request):
+    """UC-012: Convener retires (unpublishes) an award from the active catalogue."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    award_id = request.data.get('id')
+    try:
+        award = Award_and_scholarship.objects.get(pk=award_id)
+    except Award_and_scholarship.DoesNotExist:
+        return Response({'detail': 'Award not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    award.publish_flag = False
+    award.save(update_fields=['publish_flag'])
+    return Response({'detail': f'Award "{award.award_name}" has been retired (unpublished).'})
+
+
+# T10: Document Reuse
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def list_student_documents(request):
+    """BR-SPACS-003: Return valid previously uploaded documents for the current student."""
+    if not _student(request.user):
+        return Response({'detail': 'Students only.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    student = request.user.extrainfo.student
+    import datetime as dt
+    from applications.scholarships.models import StudentDocument
+    from django.db.models import Q
+    today = dt.date.today()
+    
+    # Return documents that are not yet expired (or have no expiry)
+    docs = StudentDocument.objects.filter(
+        student=student
+    ).filter(
+        Q(valid_until__isnull=True) | Q(valid_until__gte=today)
+    ).order_by('-uploaded_at')
+    
+    data = [
+        {
+            'id': d.id,
+            'doc_type': d.doc_type,
+            'doc_type_label': d.get_doc_type_display(),
+            'uploaded_at': d.uploaded_at.strftime('%Y-%m-%d'),
+            'valid_until': d.valid_until.strftime('%Y-%m-%d') if d.valid_until else None,
+            'file_url': request.build_absolute_uri(d.file.url),
+        }
+        for d in docs
+    ]
+    return Response(data)

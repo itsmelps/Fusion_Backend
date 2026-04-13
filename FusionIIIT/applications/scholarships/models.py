@@ -72,6 +72,11 @@ class Constants:
 class Award_and_scholarship(models.Model):
     award_name = models.CharField(max_length=100, default='')
     catalog = models.TextField(max_length=5000)
+    publish_flag = models.BooleanField(default=True, help_text="Only published awards appear in application flows.")
+    version = models.IntegerField(default=1, help_text="Incremented each time catalog text is saved.")
+    cpi_cutoff = models.FloatField(default=0.0, help_text="Minimum CPI required. 0 means no CPI requirement.")
+    income_ceiling = models.IntegerField(default=0, help_text="Maximum annual family income in rupees. 0 means no ceiling.")
+    eligible_programme = models.CharField(max_length=50, default='all', help_text="e.g. 'B.Tech' or 'all'")
 
     class Meta:
         db_table = 'Award_and_scholarship'
@@ -276,3 +281,74 @@ class Director_gold(models.Model):
 
     class Meta:
         db_table = 'Director_gold'
+
+
+class Withdrawal(models.Model):
+    SCHOLARSHIP_TYPE_CHOICES = [
+        ('mcm', 'MCM Scholarship'),
+        ('gold', "Director's Gold Medal"),
+        ('silver', "Director's Silver Medal"),
+        ('dm', 'D&M Proficiency Gold Medal'),
+    ]
+    scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
+    application_id = models.IntegerField()  # PK of the Mcm/Gold/Silver/DM record
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    reason = models.TextField(max_length=1000)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    acknowledged = models.BooleanField(default=False)
+    acknowledged_by = models.ForeignKey(
+        ExtraInfo, null=True, blank=True, on_delete=models.SET_NULL, related_name='withdrawal_acknowledgements'
+    )
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'Withdrawal'
+
+
+class ApplicationDraft(models.Model):
+    student    = models.ForeignKey(Student, on_delete=models.CASCADE)
+    award_type = models.CharField(max_length=30)  # 'mcm', 'gold', 'silver', 'dm'
+    draft_data = models.TextField()               # JSON-serialized form data
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ApplicationDraft'
+        unique_together = ('student', 'award_type')
+
+
+class ApplicationForward(models.Model):
+    SCHOLARSHIP_TYPE_CHOICES = [
+        ('mcm', 'MCM'),
+        ('gold', 'Gold'),
+        ('silver', 'Silver'),
+        ('dm', 'DM'),
+    ]
+    scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
+    application_id   = models.IntegerField()
+    forwarded_by     = models.ForeignKey(ExtraInfo, on_delete=models.CASCADE, related_name='forwarded_applications')
+    forwarded_at     = models.DateTimeField(auto_now_add=True)
+    notes            = models.TextField(max_length=500, blank=True, default='')
+
+    class Meta:
+        db_table = 'ApplicationForward'
+        unique_together = ('scholarship_type', 'application_id')
+
+
+class StudentDocument(models.Model):
+    DOC_TYPE_CHOICES = [
+        ('income_certificate', 'Income Certificate'),
+        ('marksheet', 'Marksheet'),
+        ('fee_receipt', 'Fee Receipt'),
+        ('bank_details', 'Bank Details'),
+        ('affidavit', 'Affidavit'),
+        ('aadhar_card', 'Aadhar Card'),
+        ('relevant_document', 'Relevant Document'),
+    ]
+    student      = models.ForeignKey(Student, on_delete=models.CASCADE)
+    doc_type     = models.CharField(max_length=30, choices=DOC_TYPE_CHOICES)
+    file         = models.FileField(upload_to='student_documents/')
+    uploaded_at  = models.DateTimeField(auto_now_add=True)
+    valid_until  = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'StudentDocument'

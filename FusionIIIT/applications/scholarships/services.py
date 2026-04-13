@@ -56,6 +56,36 @@ def map_invite_award_to_release(award_ui):
     return mapping.get(award_ui, award_ui)
 
 
+def check_student_eligibility(student, award_obj):
+    """
+    BR-SPACS-001: Check student meets award eligibility.
+    Returns (is_eligible: bool, reason: str).
+    """
+    # CPI check
+    if award_obj.cpi_cutoff > 0:
+        from applications.academic_information.models import Spi
+        spis = Spi.objects.filter(student=student).order_by('-semester')
+        if not spis.exists():
+            return False, "No academic record found. Cannot verify CPI."
+        latest_cpi = spis.first().spi if hasattr(spis.first(), 'spi') else 0.0
+        if latest_cpi < award_obj.cpi_cutoff:
+            return False, f"Your CPI ({latest_cpi:.2f}) is below the required minimum ({award_obj.cpi_cutoff:.2f})."
+    
+    # Income ceiling check
+    if award_obj.income_ceiling > 0:
+        # Get latest MCM application to check annual_income
+        latest_mcm = Mcm.objects.filter(student=student).order_by('-date').first()
+        if latest_mcm and latest_mcm.annual_income > award_obj.income_ceiling:
+            return False, f"Your annual family income (₹{latest_mcm.annual_income}) exceeds the maximum limit (₹{award_obj.income_ceiling})."
+    
+    # Programme check
+    if award_obj.eligible_programme != 'all':
+        if student.programme != award_obj.eligible_programme:
+            return False, f"This award is only open to {award_obj.eligible_programme} students."
+    
+    return True, "Eligible"
+
+
 def resolve_award_for_submission(post):
     """
     Resolve Award_and_scholarship from React FormData (award / award_type).
@@ -77,7 +107,10 @@ def resolve_award_for_submission(post):
         name = raw
 
     try:
-        return Award_and_scholarship.objects.get(award_name=name)
+        award = Award_and_scholarship.objects.get(award_name=name)
+        if not award.publish_flag:
+            raise ValueError(f'Award "{award.award_name}" is not currently active.')
+        return award
     except Award_and_scholarship.DoesNotExist:
         short_to_id = {
             "Director's Gold": 2,
@@ -87,7 +120,10 @@ def resolve_award_for_submission(post):
         }
         aid = short_to_id.get(raw)
         if aid:
-            return Award_and_scholarship.objects.get(pk=aid)
+            award = Award_and_scholarship.objects.get(pk=aid)
+            if not award.publish_flag:
+                raise ValueError(f'Award "{award.award_name}" is not currently active.')
+            return award
         raise
 
 
@@ -190,10 +226,16 @@ def create_invite_release(convenor_user, payload):
     return rel
 
 
-def update_award_catalog(award_pk, catalog_text):
+def update_award_catalog(award_pk, catalog_text, publish=None):
     award = Award_and_scholarship.objects.get(pk=award_pk)
     award.catalog = catalog_text
-    award.save(update_fields=['catalog'])
+    award.version = award.version + 1
+    if publish is not None:
+        award.publish_flag = publish
+    update_fields = ['catalog', 'version']
+    if publish is not None:
+        update_fields.append('publish_flag')
+    award.save(update_fields=update_fields)
     return award
 
 
@@ -237,7 +279,11 @@ def _mcm_file_urls(mcm, request):
 
 
 def mcm_applications_list_for_convenor(request):
+    from applications.scholarships.models import ApplicationForward
     rows = []
+    forwarded_ids = set(
+        ApplicationForward.objects.filter(scholarship_type='mcm').values_list('application_id', flat=True)
+    )
     for m in selectors.get_all_mcm():
         stud = m.student
         user = stud.id.user
@@ -247,6 +293,7 @@ def mcm_applications_list_for_convenor(request):
                 'student': user.id,
                 'annual_income': m.annual_income,
                 'status': m.status,
+                'forwarded': m.id in forwarded_ids,
                 **_mcm_file_urls(m, request),
             }
         )
@@ -319,6 +366,11 @@ def submit_mcm_api(request):
 
     award_obj = resolve_award_for_submission(post)
     student = user.extrainfo.student
+
+    # T1: BR-SPACS-001 - Eligibility validation
+    is_eligible, reason = check_student_eligibility(student, award_obj)
+    if not is_eligible:
+        raise ValueError(f"Eligibility check failed: {reason}")
 
     father_occ = post.get('father_occ')
     mother_occ = post.get('mother_occ')
@@ -448,6 +500,14 @@ def submit_mcm_api(request):
             student=student,
         )
         if existing.exists():
+            existing_obj = existing.first()
+            # T2: BR-SPACS-002 - Prevent re-submission of verified applications
+            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+                raise ValueError(
+                    f"Your application (status: {existing_obj.status}) cannot be modified. "
+                    "It has already been reviewed. Contact SPACS office if you need to make changes."
+                )
+            # Only update if still INCOMPLETE
             upd = {k: v for k, v in common.items() if k != 'student'}
             for fk in file_keys:
                 if upd.get(fk) is None:
@@ -475,6 +535,11 @@ def submit_director_gold_api(request):
     relevant_document = files.get('Marksheet') or files.get('myfile')
     award_obj = resolve_award_for_submission(request.POST)
     student_id = user.extrainfo.student
+
+    # T1: BR-SPACS-001 - Eligibility validation
+    is_eligible, reason = check_student_eligibility(student_id, award_obj)
+    if not is_eligible:
+        raise ValueError(f"Eligibility check failed: {reason}")
 
     academic_achievements = request.POST.get('academic_achievements')
     science_inside = request.POST.get('science_inside')
@@ -567,6 +632,13 @@ def submit_director_gold_api(request):
             status='INCOMPLETE',
         )
         if existing.exists():
+            existing_obj = existing.first()
+            # T2: BR-SPACS-002 - Prevent re-submission of verified applications
+            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+                raise ValueError(
+                    f"Your application (status: {existing_obj.status}) cannot be modified. "
+                    "It has already been reviewed. Contact SPACS office if you need to make changes."
+                )
             upd = dict(fields)
             if upd.get('relevant_document') is None:
                 upd.pop('relevant_document', None)
@@ -620,6 +692,11 @@ def submit_director_silver_api(request):
     award_obj = resolve_award_for_submission(post)
     award_type = post.get('award-type') or post.get('award_type')
     student_id = user.extrainfo.student
+
+    # T1: BR-SPACS-001 - Eligibility validation
+    is_eligible, reason = check_student_eligibility(student_id, award_obj)
+    if not is_eligible:
+        raise ValueError(f"Eligibility check failed: {reason}")
 
     inside_achievements = post.get('inside_achievements')
     outside_achievements = post.get('outside_achievements')
@@ -677,6 +754,13 @@ def submit_director_silver_api(request):
             status='INCOMPLETE',
         )
         if existing.exists():
+            existing_obj = existing.first()
+            # T2: BR-SPACS-002 - Prevent re-submission of verified applications
+            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+                raise ValueError(
+                    f"Your application (status: {existing_obj.status}) cannot be modified. "
+                    "It has already been reviewed. Contact SPACS office if you need to make changes."
+                )
             upd = dict(fields)
             if upd.get('relevant_document') is None:
                 upd.pop('relevant_document', None)
@@ -729,6 +813,11 @@ def submit_proficiency_dm_api(request):
     award_obj = resolve_award_for_submission(post)
     award_type = post.get('award-type') or post.get('award_type')
     student_id = user.extrainfo.student
+
+    # T1: BR-SPACS-001 - Eligibility validation
+    is_eligible, reason = check_student_eligibility(student_id, award_obj)
+    if not is_eligible:
+        raise ValueError(f"Eligibility check failed: {reason}")
 
     roll_no1 = _safe_int(post.get('roll_no1'))
     roll_no2 = _safe_int(post.get('roll_no2'))
@@ -816,6 +905,13 @@ def submit_proficiency_dm_api(request):
             student=student_id,
         )
         if existing.exists():
+            existing_obj = existing.first()
+            # T2: BR-SPACS-002 - Prevent re-submission of verified applications
+            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+                raise ValueError(
+                    f"Your application (status: {existing_obj.status}) cannot be modified. "
+                    "It has already been reviewed. Contact SPACS office if you need to make changes."
+                )
             upd = dict(base)
             if upd.get('relevant_document') is None:
                 upd.pop('relevant_document', None)

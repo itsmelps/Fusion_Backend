@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #333; margin: 20px; }
+    h1 { color: #17ABFF; border-bottom: 2px solid #17ABFF; padding-bottom: 8px; font-size: 20px; }
+    h2 { font-size: 14px; margin-top: 20px; border-bottom: 1px solid #ccc; color: #17ABFF; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { background: #f0f0f0; text-align: left; padding: 6px 8px; font-weight: bold; border: 1px solid #ddd; }
+    td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+    .header-info { background: #f9f9f9; padding: 10px; margin: 10px 0; border-left: 4px solid #17ABFF; }
+    .section { margin-top: 20px; }
+    .footer { margin-top: 40px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #ddd; padding-top: 10px; }
+    .detail-row { margin: 8px 0; }
+    .label { font-weight: bold; display: inline-block; width: 150px; }
+    .value { display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>IIITDMJ — SPACS Application</h1>
+  
+  <div class="header-info">
+    <div class="detail-row">
+      <span class="label">Award:</span>
+      <span class="value">{{ award.award_name }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Student:</span>
+      <span class="value">{{ student.id.user.get_full_name }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Roll Number:</span>
+      <span class="value">{{ student.id }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Programme:</span>
+      <span class="value">{{ student.programme }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Status:</span>
+      <span class="value">{{ app.status }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="label">Date Submitted:</span>
+      <span class="value">{{ app.date }}</span>
+    </div>
+  </div>
+  
+  {% if scholarship_type == 'mcm' %}
+  <div class="section">
+    <h2>Financial Details</h2>
+    <table>
+      <tr>
+        <th>Item</th>
+        <th>Amount</th>
+      </tr>
+      <tr>
+        <td>Father's Income</td>
+        <td>₹{{ app.income_father }}</td>
+      </tr>
+      <tr>
+        <td>Mother's Income</td>
+        <td>₹{{ app.income_mother }}</td>
+      </tr>
+      <tr>
+        <td>Other Income</td>
+        <td>₹{{ app.income_other }}</td>
+      </tr>
+      <tr>
+        <td>Total Annual Income</td>
+        <td><strong>₹{{ app.annual_income }}</strong></td>
+      </tr>
+    </table>
+    
+    <h2>Family & Property Information</h2>
+    <table>
+      <tr>
+        <th>Field</th>
+        <th>Value</th>
+      </tr>
+      <tr>
+        <td>Father's Occupation</td>
+        <td>{{ app.father_occ }}</td>
+      </tr>
+      <tr>
+        <td>Mother's Occupation</td>
+        <td>{{ app.mother_occ }}</td>
+      </tr>
+      <tr>
+        <td>House Type</td>
+        <td>{{ app.house }}</td>
+      </tr>
+      <tr>
+        <td>Bank Name</td>
+        <td>{{ app.bank_name }}</td>
+      </tr>
+      <tr>
+        <td>College Name</td>
+        <td>{{ app.college_name }}</td>
+      </tr>
+    </table>
+  </div>
+  {% elif scholarship_type == 'gold' %}
+  <div class="section">
+    <h2>Achievements & Activities</h2>
+    <table>
+      <tr>
+        <th>Category</th>
+        <th>Details</th>
+      </tr>
+      <tr>
+        <td>Academic Achievements</td>
+        <td>{{ app.academic_achievements|truncatewords:30 }}</td>
+      </tr>
+      <tr>
+        <td>Science (Inside)</td>
+        <td>{{ app.science_inside|truncatewords:30 }}</td>
+      </tr>
+      <tr>
+        <td>Games (Inside)</td>
+        <td>{{ app.games_inside|truncatewords:30 }}</td>
+      </tr>
+      <tr>
+        <td>Cultural (Inside)</td>
+        <td>{{ app.cultural_inside|truncatewords:30 }}</td>
+      </tr>
+    </table>
+  </div>
+  {% elif scholarship_type == 'silver' %}
+  <div class="section">
+    <h2>Achievements</h2>
+    <table>
+      <tr>
+        <th>Field</th>
+        <th>Details</th>
+      </tr>
+      <tr>
+        <td>Inside Achievements</td>
+        <td>{{ app.inside_achievements|truncatewords:30 }}</td>
+      </tr>
+      <tr>
+        <td>Outside Achievements</td>
+        <td>{{ app.outside_achievements|truncatewords:30 }}</td>
+      </tr>
+      <tr>
+        <td>Justification</td>
+        <td>{{ app.justification|truncatewords:30 }}</td>
+      </tr>
+    </table>
+  </div>
+  {% elif scholarship_type == 'dm' %}
+  <div class="section">
+    <h2>Project Information</h2>
+    <table>
+      <tr>
+        <th>Field</th>
+        <th>Value</th>
+      </tr>
+      <tr>
+        <td>Title</td>
+        <td>{{ app.title_name }}</td>
+      </tr>
+      <tr>
+        <td>Number of Students</td>
+        <td>{{ app.no_of_students }}</td>
+      </tr>
+      <tr>
+        <td>Brief Description</td>
+        <td>{{ app.brief_description|truncatewords:50 }}</td>
+      </tr>
+      <tr>
+        <td>Justification</td>
+        <td>{{ app.justification|truncatewords:50 }}</td>
+      </tr>
+    </table>
+  </div>
+  {% endif %}
+  
+  <div class="footer">
+    <p>Generated on {{ generated_at }} — SPACS, IIITDMJ · This document is system-generated.</p>
+  </div>
+</body>
+</html>
