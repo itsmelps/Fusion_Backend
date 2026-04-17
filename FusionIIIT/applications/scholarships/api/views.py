@@ -112,6 +112,9 @@ def proficiencydm_update(request):
         return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
 def scholarship_details(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
@@ -122,7 +125,11 @@ def scholarship_details(request):
         return Response(services.mcm_applications_list_for_assistant(request))
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
 def mcm_status_update(request):
+    """UC-003: SPACS staff updates application status (Accept/Reject/Forward/AskInfo)."""
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
     
@@ -193,6 +200,9 @@ def dm_proficiency_list(request):
     return Response(services.proficiency_dm_list(request))
 
 
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
 def director_gold_decision(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
