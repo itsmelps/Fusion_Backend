@@ -363,7 +363,11 @@ def award_catalog_update(request):
         services.update_award_catalog(
             ser.validated_data['id'],
             ser.validated_data['catalog'],
-            publish=ser.validated_data.get('publish')
+            publish=ser.validated_data.get('publish'),
+            award_name=ser.validated_data.get('award_name'),
+            cpi_cutoff=ser.validated_data.get('cpi_cutoff'),
+            income_ceiling=ser.validated_data.get('income_ceiling'),
+            eligible_programme=ser.validated_data.get('eligible_programme')
         )
     except Award_and_scholarship.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)

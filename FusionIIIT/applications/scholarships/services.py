@@ -226,15 +226,32 @@ def create_invite_release(convenor_user, payload):
     return rel
 
 
-def update_award_catalog(award_pk, catalog_text, publish=None):
+def update_award_catalog(award_pk, catalog_text, publish=None, **kwargs):
     award = Award_and_scholarship.objects.get(pk=award_pk)
     award.catalog = catalog_text
     award.version = award.version + 1
+    update_fields = ['catalog', 'version']
+
     if publish is not None:
         award.publish_flag = publish
-    update_fields = ['catalog', 'version']
-    if publish is not None:
         update_fields.append('publish_flag')
+
+    if 'award_name' in kwargs and kwargs['award_name']:
+        award.award_name = kwargs['award_name']
+        update_fields.append('award_name')
+        
+    if 'cpi_cutoff' in kwargs and kwargs['cpi_cutoff'] is not None:
+        award.cpi_cutoff = kwargs['cpi_cutoff']
+        update_fields.append('cpi_cutoff')
+        
+    if 'income_ceiling' in kwargs and kwargs['income_ceiling'] is not None:
+        award.income_ceiling = kwargs['income_ceiling']
+        update_fields.append('income_ceiling')
+        
+    if 'eligible_programme' in kwargs and kwargs['eligible_programme']:
+        award.eligible_programme = kwargs['eligible_programme']
+        update_fields.append('eligible_programme')
+
     award.save(update_fields=update_fields)
     return award
 

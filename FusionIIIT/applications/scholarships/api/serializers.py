@@ -12,6 +12,10 @@ class AwardSerializer(serializers.ModelSerializer):
 class CatalogUpdateSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     catalog = serializers.CharField(allow_blank=True)
+    award_name = serializers.CharField(required=False, allow_blank=True)
+    cpi_cutoff = serializers.FloatField(required=False, allow_null=True)
+    income_ceiling = serializers.IntegerField(required=False, allow_null=True)
+    eligible_programme = serializers.CharField(required=False, allow_blank=True)
     publish = serializers.BooleanField(required=False, allow_null=True)
 
 
