@@ -245,8 +245,10 @@ def map_mcm_status_from_client(status):
         return 'Accept'
     if s == 'REJECTED':
         return 'Reject'
-    if s == 'UNDER_REVIEW':
-        return 'INCOMPLETE'
+    if s == 'UNDER_REVIEW' or s == 'INCOMPLETE':
+        return 'Incomplete'
+    if s == 'FORWARDED':
+        return 'Forwarded'
     return status
 
 
@@ -256,6 +258,10 @@ def map_medal_status_from_client(status):
         return 'Accept'
     if s == 'REJECTED':
         return 'Reject'
+    if s == 'FORWARDED':
+        return 'Forwarded'
+    if s == 'INCOMPLETE':
+        return 'Incomplete'
     return status
 
 
@@ -279,11 +285,27 @@ def _mcm_file_urls(mcm, request):
 
 
 def mcm_applications_list_for_convenor(request):
-    from applications.scholarships.models import ApplicationForward
+    """Convenor sees only FORWARDED MCM applications."""
     rows = []
-    forwarded_ids = set(
-        ApplicationForward.objects.filter(scholarship_type='mcm').values_list('application_id', flat=True)
-    )
+    for m in selectors.get_all_mcm().filter(status='Forwarded'):
+        stud = m.student
+        user = stud.id.user
+        rows.append(
+            {
+                'id': m.id,
+                'student': user.id,
+                'annual_income': m.annual_income,
+                'status': m.status,
+                **_mcm_file_urls(m, request),
+            }
+        )
+    return rows
+
+
+def mcm_applications_list_for_assistant(request):
+    """Assistant sees all MCM applications (Pending, Incomplete, etc.)."""
+    rows = []
+    # selectors.get_all_mcm() should ideally return all
     for m in selectors.get_all_mcm():
         stud = m.student
         user = stud.id.user
@@ -293,11 +315,38 @@ def mcm_applications_list_for_convenor(request):
                 'student': user.id,
                 'annual_income': m.annual_income,
                 'status': m.status,
-                'forwarded': m.id in forwarded_ids,
                 **_mcm_file_urls(m, request),
             }
         )
     return rows
+
+
+def add_application_note(scholarship_type, application_id, note_text, author_info):
+    from .models import ApplicationNote
+    return ApplicationNote.objects.create(
+        scholarship_type=scholarship_type,
+        application_id=application_id,
+        note=note_text,
+        author=author_info
+    )
+
+
+def get_application_notes(scholarship_type, application_id):
+    from .models import ApplicationNote
+    notes = ApplicationNote.objects.filter(
+        scholarship_type=scholarship_type,
+        application_id=application_id
+    ).order_by('-created_at')
+    return [
+        {
+            'id': n.id,
+            'note': n.note,
+            'created_at': n.created_at.strftime('%Y-%m-%d %H:%M'),
+            'author_name': n.author.user.get_full_name() or n.author.user.username,
+            'is_read': n.is_read
+        }
+        for n in notes
+    ]
 
 
 def _medal_row(obj, request):

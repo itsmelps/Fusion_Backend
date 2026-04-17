@@ -44,4 +44,7 @@ urlpatterns = [
     path('retire-award/', views.retire_award),
     # T10: Document reuse
     path('my-documents/', views.list_student_documents),
+    # Notes & Communication
+    path('application-notes/', views.list_application_notes),
+    path('manage-note/', views.manage_application_note),
 ]

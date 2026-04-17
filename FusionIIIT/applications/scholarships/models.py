@@ -12,6 +12,7 @@ class Constants:
         INCOMPLETE = 'Incomplete', 'INCOMPLETE'
         REJECT     = 'Reject',     'REJECT'
         ACCEPT     = 'Accept',     'ACCEPT'
+        FORWARDED  = 'Forwarded',  'FORWARDED'
 
     # Backward-compatible alias — all existing model fields and views continue to work unchanged
     STATUS_CHOICES = StatusChoices.choices
@@ -352,3 +353,21 @@ class StudentDocument(models.Model):
 
     class Meta:
         db_table = 'StudentDocument'
+
+
+class ApplicationNote(models.Model):
+    SCHOLARSHIP_TYPE_CHOICES = [
+        ('mcm', 'MCM'),
+        ('gold', 'Gold'),
+        ('silver', 'Silver'),
+        ('dm', 'DM'),
+    ]
+    scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
+    application_id   = models.IntegerField()
+    note             = models.TextField(max_length=1000)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    author           = models.ForeignKey(ExtraInfo, on_delete=models.CASCADE)
+    is_read          = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'ApplicationNote'

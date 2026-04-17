@@ -112,41 +112,57 @@ def proficiencydm_update(request):
         return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
-@authentication_classes([TokenAuthentication, SessionAuthentication])
-@permission_classes([IsAuthenticated])
 def scholarship_details(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
-    return Response(services.mcm_applications_list_for_convenor(request))
+    
+    if selectors.is_spacs_convenor(request.user):
+        return Response(services.mcm_applications_list_for_convenor(request))
+    else:
+        return Response(services.mcm_applications_list_for_assistant(request))
 
 
-@api_view(['POST'])
-@authentication_classes([TokenAuthentication, SessionAuthentication])
-@permission_classes([IsAuthenticated])
 def mcm_status_update(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
-    ser = IdStatusSerializer(data=request.data)
+    
+    ser = GoldDecisionSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     pk = ser.validated_data['id']
-    new_status = services.map_mcm_status_from_client(ser.validated_data['status'])
+    action = ser.validated_data['action']
+    note_text = ser.validated_data.get('note')
+    
+    status_map = {
+        'accept': 'Accept',
+        'reject': 'Reject',
+        'forward': 'Forwarded',
+        'ask_info': 'Incomplete'
+    }
+    new_status = status_map.get(action)
     
     try:
         mcm = Mcm.objects.get(pk=pk)
-        student_user = mcm.student.id.user
-        # Send notification when status changes
+        if action == 'forward' and not selectors.is_spacs_assistant(request.user):
+             return Response({'detail': 'Only assistants can forward.'}, status=status.HTTP_403_FORBIDDEN)
+        if action in ('accept', 'reject') and not selectors.is_spacs_convenor(request.user):
+             return Response({'detail': 'Only convenor can finalize.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if note_text:
+            services.add_application_note('mcm', pk, note_text, request.user.extrainfo)
+
+        mcm.status = new_status
+        mcm.save()
+        
+        # Send notification
         try:
             from notification.views import scholarship_portal_notif
-            scholarship_portal_notif(request.user, student_user, f'mcm_{new_status.lower()}')
+            scholarship_portal_notif(request.user, mcm.student.id.user, f'mcm_{new_status.lower()}')
         except Exception:
             pass
+            
     except Mcm.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     
-    updated = Mcm.objects.filter(pk=pk).update(status=new_status)
-    if not updated:
-        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'detail': 'ok'})
 
 
@@ -177,9 +193,6 @@ def dm_proficiency_list(request):
     return Response(services.proficiency_dm_list(request))
 
 
-@api_view(['POST'])
-@authentication_classes([TokenAuthentication, SessionAuthentication])
-@permission_classes([IsAuthenticated])
 def director_gold_decision(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
@@ -187,9 +200,29 @@ def director_gold_decision(request):
     ser.is_valid(raise_exception=True)
     pk = ser.validated_data['id']
     action = ser.validated_data['action']
-    st = 'Accept' if action == 'accept' else 'Reject'
-    updated = Director_gold.objects.filter(pk=pk).update(status=st)
-    if not updated:
+    note_text = ser.validated_data.get('note')
+    
+    status_map = {
+        'accept': 'Accept',
+        'reject': 'Reject',
+        'forward': 'Forwarded',
+        'ask_info': 'Incomplete'
+    }
+    new_status = status_map.get(action)
+    
+    try:
+        obj = Director_gold.objects.get(pk=pk)
+        if action == 'forward' and not selectors.is_spacs_assistant(request.user):
+             return Response({'detail': 'Only assistants can forward.'}, status=status.HTTP_403_FORBIDDEN)
+        if action in ('accept', 'reject') and not selectors.is_spacs_convenor(request.user):
+             return Response({'detail': 'Only convenor can finalize.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if note_text:
+            services.add_application_note('gold', pk, note_text, request.user.extrainfo)
+
+        obj.status = new_status
+        obj.save()
+    except Director_gold.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'detail': 'ok'})
 
@@ -200,11 +233,33 @@ def director_gold_decision(request):
 def director_silver_decision(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
-    ser = IdStatusSerializer(data=request.data)
+    ser = GoldDecisionSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    st = services.map_medal_status_from_client(ser.validated_data['status'])
-    updated = Director_silver.objects.filter(pk=ser.validated_data['id']).update(status=st)
-    if not updated:
+    pk = ser.validated_data['id']
+    action = ser.validated_data['action']
+    note_text = ser.validated_data.get('note')
+    
+    status_map = {
+        'accept': 'Accept',
+        'reject': 'Reject',
+        'forward': 'Forwarded',
+        'ask_info': 'Incomplete'
+    }
+    new_status = status_map.get(action)
+    
+    try:
+        obj = Director_silver.objects.get(pk=pk)
+        if action == 'forward' and not selectors.is_spacs_assistant(request.user):
+             return Response({'detail': 'Only assistants can forward.'}, status=status.HTTP_403_FORBIDDEN)
+        if action in ('accept', 'reject') and not selectors.is_spacs_convenor(request.user):
+             return Response({'detail': 'Only convenor can finalize.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if note_text:
+            services.add_application_note('silver', pk, note_text, request.user.extrainfo)
+
+        obj.status = new_status
+        obj.save()
+    except Director_silver.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'detail': 'ok'})
 
@@ -215,13 +270,64 @@ def director_silver_decision(request):
 def dm_proficiency_decision(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
-    ser = IdStatusSerializer(data=request.data)
+    ser = GoldDecisionSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
-    st = services.map_medal_status_from_client(ser.validated_data['status'])
-    updated = Proficiency_dm.objects.filter(pk=ser.validated_data['id']).update(status=st)
-    if not updated:
+    pk = ser.validated_data['id']
+    action = ser.validated_data['action']
+    note_text = ser.validated_data.get('note')
+    
+    status_map = {
+        'accept': 'Accept',
+        'reject': 'Reject',
+        'forward': 'Forwarded',
+        'ask_info': 'Incomplete'
+    }
+    new_status = status_map.get(action)
+    
+    try:
+        obj = Proficiency_dm.objects.get(pk=pk)
+        if action == 'forward' and not selectors.is_spacs_assistant(request.user):
+             return Response({'detail': 'Only assistants can forward.'}, status=status.HTTP_403_FORBIDDEN)
+        if action in ('accept', 'reject') and not selectors.is_spacs_convenor(request.user):
+             return Response({'detail': 'Only convenor can finalize.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if note_text:
+            services.add_application_note('dm', pk, note_text, request.user.extrainfo)
+
+        obj.status = new_status
+        obj.save()
+    except Proficiency_dm.DoesNotExist:
         return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
     return Response({'detail': 'ok'})
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def list_application_notes(request):
+    scholarship_type = request.query_params.get('scholarship_type')
+    application_id = request.query_params.get('application_id')
+    return Response(services.get_application_notes(scholarship_type, application_id))
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def manage_application_note(request):
+    """Mark note as read or delete note."""
+    note_id = request.data.get('note_id')
+    action = request.data.get('action') # 'read', 'delete'
+    from applications.scholarships.models import ApplicationNote
+    try:
+        note = ApplicationNote.objects.get(pk=note_id)
+        if action == 'read':
+            note.is_read = True
+            note.save()
+        elif action == 'delete':
+            note.delete()
+        return Response({'detail': 'ok'})
+    except ApplicationNote.DoesNotExist:
+        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['POST'])
