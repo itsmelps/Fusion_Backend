@@ -584,15 +584,18 @@ def download_application_pdf(request):
     from django.http import HttpResponse
     html_string = render_to_string('scholarships/application_pdf.html', context)
     
+    filename = f"SPACS_{scholarship_type.upper()}_application_{application_id}.pdf"
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
     try:
-        from weasyprint import HTML
-        pdf_file = HTML(string=html_string).write_pdf()
+        from xhtml2pdf import pisa
+        pisa_status = pisa.CreatePDF(html_string, dest=response)
+        if pisa_status.err:
+            return Response({'detail': 'PDF generation errors'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return Response({'detail': f'PDF generation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    filename = f"SPACS_{scholarship_type.upper()}_application_{application_id}.pdf"
-    response = HttpResponse(pdf_file, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
 
