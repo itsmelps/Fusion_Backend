@@ -677,7 +677,7 @@ def submit_mcm_api(request):
         try:
             existing_app = Mcm.objects.get(pk=application_id, student=student)
             # BR-SPACS-002: Safety check
-            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
                  raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
             
             upd = {k: v for k, v in common.items() if k != 'student'}
@@ -697,7 +697,7 @@ def submit_mcm_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -800,7 +800,7 @@ def submit_director_gold_api(request):
     if application_id:
         try:
             existing_app = Director_gold.objects.get(pk=application_id, student=student_id)
-            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
                  raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
             
             upd_fields = dict(
@@ -870,7 +870,7 @@ def submit_director_gold_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -973,7 +973,7 @@ def submit_director_silver_api(request):
     if application_id:
         try:
             existing_app = Director_silver.objects.get(pk=application_id, student=student_id)
-            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
                  raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
             
             upd_fields = dict(
@@ -1021,7 +1021,7 @@ def submit_director_silver_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -1169,7 +1169,7 @@ def submit_proficiency_dm_api(request):
     if application_id:
         try:
             existing_app = Proficiency_dm.objects.get(pk=application_id, student=student_id)
-            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
                  raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
             
             upd = dict(base)
@@ -1188,7 +1188,7 @@ def submit_proficiency_dm_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+            if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
