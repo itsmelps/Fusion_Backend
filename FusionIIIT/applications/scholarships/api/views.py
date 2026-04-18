@@ -62,6 +62,10 @@ def mcm_update(request):
         return Response({'detail': 'Unknown award'}, status=status.HTTP_400_BAD_REQUEST)
     except ValueError as exc:
         return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as exc:
+        import traceback
+        print(traceback.format_exc())
+        return Response({'detail': f"Internal Server Error: {str(exc)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -405,7 +409,7 @@ def mcm_show(request):
     if not _student(request.user):
         return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
     student = request.user.extrainfo.student
-    return Response(services.student_status_rows(selectors.get_mcm_for_student(student)))
+    return Response(services.student_status_rows(selectors.get_mcm_for_student(student), request))
 
 
 @api_view(['POST'])
@@ -415,7 +419,7 @@ def directorgold_show(request):
     if not _student(request.user):
         return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
     student = request.user.extrainfo.student
-    return Response(services.student_status_rows(selectors.get_gold_for_student(student)))
+    return Response(services.student_status_rows(selectors.get_gold_for_student(student), request))
 
 
 @api_view(['POST'])
@@ -425,7 +429,7 @@ def directorsilver_show(request):
     if not _student(request.user):
         return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
     student = request.user.extrainfo.student
-    return Response(services.student_status_rows(selectors.get_silver_for_student(student)))
+    return Response(services.student_status_rows(selectors.get_silver_for_student(student), request))
 
 
 @api_view(['POST'])
@@ -435,7 +439,7 @@ def proficiencydm_show(request):
     if not _student(request.user):
         return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
     student = request.user.extrainfo.student
-    return Response(services.student_status_rows(selectors.get_proficiency_for_student(student)))
+    return Response(services.student_status_rows(selectors.get_proficiency_for_student(student), request))
 
 
 # T3: Withdrawal Feature

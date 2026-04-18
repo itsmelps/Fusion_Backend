@@ -128,6 +128,13 @@ class Mcm(models.Model):
     annual_income = models.IntegerField(default=0)
     date = models.DateField(default=datetime.date.today)
     award_id = models.ForeignKey(Award_and_scholarship, default=4, on_delete=models.CASCADE)
+    
+    # Missing fields from form
+    academic_year = models.CharField(max_length=10, default='2024-25')
+    semester = models.IntegerField(default=1)
+    remarks = models.TextField(max_length=500, null=True, blank=True)
+    category = models.CharField(max_length=10, null=True, blank=True)
+    cpi = models.FloatField(default=0)
 
 
     class Meta:

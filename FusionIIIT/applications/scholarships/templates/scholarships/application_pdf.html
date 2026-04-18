@@ -81,23 +81,39 @@
       </tr>
       <tr>
         <td>Father's Occupation</td>
-        <td>{{ app.father_occ }}</td>
+        <td>{{ app.father_occ }} ({{ app.father_occ_desc }})</td>
       </tr>
       <tr>
         <td>Mother's Occupation</td>
-        <td>{{ app.mother_occ }}</td>
+        <td>{{ app.mother_occ }} ({{ app.mother_occ_desc }})</td>
       </tr>
       <tr>
-        <td>House Type</td>
-        <td>{{ app.house }}</td>
+        <td>Brother Name / Occ</td>
+        <td>{{ app.brother_name|default:"N/A" }} / {{ app.brother_occupation|default:"N/A" }}</td>
       </tr>
       <tr>
-        <td>Bank Name</td>
-        <td>{{ app.bank_name }}</td>
+        <td>Sister Name / Occ</td>
+        <td>{{ app.sister_name|default:"N/A" }} / {{ app.sister_occupation|default:"N/A" }}</td>
       </tr>
       <tr>
-        <td>College Name</td>
-        <td>{{ app.college_name }}</td>
+        <td>House / Area (Plot / Const)</td>
+        <td>{{ app.house }} / {{ app.plot_area }} sqft / {{ app.constructed_area }} sqft</td>
+      </tr>
+      <tr>
+        <td>Vehicles (4W / 2W)</td>
+        <td>{{ app.four_wheeler }} ({{ app.four_wheeler_desc }}) / {{ app.two_wheeler }} ({{ app.two_wheeler_desc }})</td>
+      </tr>
+      <tr>
+        <td>Education (School / Coll)</td>
+        <td>{{ app.school_name }} (Fee: ₹{{ app.school_fee }}) / {{ app.college_name }} (Fee: ₹{{ app.college_fee }})</td>
+      </tr>
+      <tr>
+        <td>Bank Details</td>
+        <td>{{ app.bank_name }} (Loan: ₹{{ app.loan_amount }})</td>
+      </tr>
+      <tr>
+        <td>Remarks</td>
+        <td>{{ app.remarks|default:"None" }}</td>
       </tr>
     </table>
   </div>

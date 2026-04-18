@@ -301,41 +301,59 @@ def _mcm_file_urls(mcm, request):
     }
 
 
+def _serialize_mcm(m, request):
+    stud = m.student
+    user = stud.id.user
+    return {
+        'id': m.id,
+        'student': user.get_full_name() or user.username,
+        'student_id': user.username,
+        'status': m.status,
+        'date': m.date.isoformat() if m.date else None,
+        'annual_income': m.annual_income,
+        'category': m.category or getattr(stud, 'category', None),
+        'cpi': m.cpi or getattr(stud, 'cpi', None),
+        'academic_year': m.academic_year,
+        'semester': m.semester,
+        'remarks': m.remarks,
+        'programme': getattr(stud, 'programme', None),
+        'department': getattr(stud.id.department, 'name', None),
+        'income_father': m.income_father,
+        'income_mother': m.income_mother,
+        'income_other': m.income_other,
+        'father_occ': m.father_occ,
+        'mother_occ': m.mother_occ,
+        'father_occ_desc': m.father_occ_desc,
+        'mother_occ_desc': m.mother_occ_desc,
+        'four_wheeler': m.four_wheeler,
+        'four_wheeler_desc': m.four_wheeler_desc,
+        'two_wheeler': m.two_wheeler,
+        'two_wheeler_desc': m.two_wheeler_desc,
+        'house': m.house,
+        'plot_area': m.plot_area,
+        'constructed_area': m.constructed_area,
+        'school_fee': m.school_fee,
+        'school_name': m.school_name,
+        'bank_name': m.bank_name,
+        'loan_amount': m.loan_amount,
+        'college_fee': m.college_fee,
+        'college_name': m.college_name,
+        'brother_name': m.brother_name,
+        'brother_occupation': m.brother_occupation,
+        'sister_name': m.sister_name,
+        'sister_occupation': m.sister_occupation,
+        **_mcm_file_urls(m, request),
+    }
+
+
 def mcm_applications_list_for_convenor(request):
     """Convenor sees only FORWARDED MCM applications."""
-    rows = []
-    for m in selectors.get_all_mcm().filter(status='Forwarded'):
-        stud = m.student
-        user = stud.id.user
-        rows.append(
-            {
-                'id': m.id,
-                'student': user.id,
-                'annual_income': m.annual_income,
-                'status': m.status,
-                **_mcm_file_urls(m, request),
-            }
-        )
-    return rows
+    return [_serialize_mcm(m, request) for m in selectors.get_all_mcm().filter(status='Forwarded')]
 
 
 def mcm_applications_list_for_assistant(request):
     """Assistant sees all MCM applications (Pending, Incomplete, etc.)."""
-    rows = []
-    # selectors.get_all_mcm() should ideally return all
-    for m in selectors.get_all_mcm():
-        stud = m.student
-        user = stud.id.user
-        rows.append(
-            {
-                'id': m.id,
-                'student': user.id,
-                'annual_income': m.annual_income,
-                'status': m.status,
-                **_mcm_file_urls(m, request),
-            }
-        )
-    return rows
+    return [_serialize_mcm(m, request) for m in selectors.get_all_mcm()]
 
 
 def add_application_note(scholarship_type, application_id, note_text, author_info):
@@ -367,17 +385,64 @@ def get_application_notes(scholarship_type, application_id):
 
 
 def _medal_row(obj, request):
-    return {
+    data = {
         'id': obj.id,
         'student': obj.student.id.user.get_full_name() or str(obj.student),
+        'student_id': obj.student.id.user.username,
+        'category': getattr(obj.student, 'category', None),
+        'cpi': getattr(obj.student, 'cpi', None),
+        'programme': getattr(obj.student, 'programme', None),
+        'department': getattr(obj.student.id.department, 'name', None),
         'status': obj.status,
         'date': obj.date.isoformat() if obj.date else None,
-        'Marksheet': (
+        'relevant_document': (
             request.build_absolute_uri(obj.relevant_document.url)
             if obj.relevant_document
             else None
         ),
+        # Common medal fields
+        'correspondence_address': getattr(obj, 'correspondence_address', None),
+        'financial_assistance': getattr(obj, 'financial_assistance', None),
+        'grand_total': getattr(obj, 'grand_total', None),
+        'nearest_policestation': getattr(obj, 'nearest_policestation', None),
+        'nearest_railwaystation': getattr(obj, 'nearest_railwaystation', None),
+        'justification': getattr(obj, 'justification', None),
     }
+    
+    # Model-specific fields
+    if isinstance(obj, Director_gold):
+        data.update({
+            'academic_achievements': obj.academic_achievements,
+            'science_inside': obj.science_inside,
+            'science_outside': obj.science_outside,
+            'games_inside': obj.games_inside,
+            'games_outside': obj.games_outside,
+            'cultural_inside': obj.cultural_inside,
+            'cultural_outside': obj.cultural_outside,
+            'social': obj.social,
+            'corporate': obj.corporate,
+            'hall_activities': obj.hall_activities,
+            'gymkhana_activities': obj.gymkhana_activities,
+            'institute_activities': obj.institute_activities,
+            'counselling_activities': obj.counselling_activities,
+            'other_activities': obj.other_activities,
+        })
+    elif isinstance(obj, Director_silver):
+        data.update({
+            'inside_achievements': obj.inside_achievements,
+            'outside_achievements': obj.outside_achievements,
+        })
+    elif isinstance(obj, Proficiency_dm):
+        data.update({
+            'title_name': obj.title_name,
+            'no_of_students': obj.no_of_students,
+            'brief_description': obj.brief_description,
+            'topic_ece': obj.ece_topic,
+            'topic_cse': obj.cse_topic,
+            'topic_mech': obj.mech_topic,
+            'topic_design': obj.design_topic,
+        })
+    return data
 
 
 def director_gold_list(request):
@@ -392,13 +457,21 @@ def proficiency_dm_list(request):
     return [_medal_row(x, request) for x in selectors.get_all_proficiency()]
 
 
-def student_status_rows(queryset):
-    return [{
-        'id': x.id,
-        'status': x.status,
-        'student': x.student.id.user.get_full_name() or str(x.student),
-        'date': x.date.isoformat() if x.date else None,
-    } for x in queryset]
+def student_status_rows(queryset, request=None):
+    rows = []
+    for x in queryset:
+        if isinstance(x, Mcm):
+            rows.append(_serialize_mcm(x, request))
+        elif isinstance(x, (Director_gold, Director_silver, Proficiency_dm)):
+            rows.append(_medal_row(x, request))
+        else:
+            rows.append({
+                'id': x.id,
+                'status': x.status,
+                'student': x.student.id.user.get_full_name() or str(x.student),
+                'date': x.date.isoformat() if x.date else None,
+            })
+    return rows
 
 
 def previous_winners_payload(programme, year, award_id):
@@ -474,15 +547,28 @@ def submit_mcm_api(request):
     bank_details = files.get('Bank_details')
     affidavit = files.get('Affidavit')
     aadhar_card = files.get('Aadhar_card')
+    
+    # New fields
+    academic_year = post.get('academic_year')
+    semester = post.get('semester')
+    remarks = post.get('remarks')
+    category = post.get('category')
+    cpi = post.get('cpi')
 
-    annual_income = income_father + income_mother + income_other
-    def _opt_num(v):
+    def _opt_num(v, default=None):
         if v is None or v == '':
-            return None
+            return default
         try:
-            return int(v)
+            return float(v) if '.' in str(v) else int(v)
         except (TypeError, ValueError):
-            return None
+            return default
+
+    # Re-extract with robust defaults
+    income_father = _opt_num(post.get('father_income') or post.get('income_father'), 0)
+    income_mother = _opt_num(post.get('mother_income') or post.get('income_mother'), 0)
+    income_other = _opt_num(post.get('other_income') or post.get('income_other'), 0)
+    
+    annual_income = income_father + income_mother + income_other
 
     data_insert = {
         'brother_name': brother_name,
@@ -555,6 +641,11 @@ def submit_mcm_api(request):
         bank_details=bank_details,
         affidavit=affidavit,
         aadhar_card=aadhar_card,
+        academic_year=academic_year,
+        semester=_opt_num(semester),
+        remarks=remarks,
+        category=category,
+        cpi=_opt_num(cpi),
     )
 
     file_keys = (
