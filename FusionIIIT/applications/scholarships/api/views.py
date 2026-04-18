@@ -755,11 +755,17 @@ def delete_draft(request):
 @permission_classes([IsAuthenticated])
 def create_award(request):
     """UC-010: Convener creates a new scholarship/award entry."""
-    if not _spacs_staff(request.user):
-        return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
+    if not selectors.is_spacs_convenor(request.user):
+        return Response({'detail': 'SPACS Convenor only.'}, status=status.HTTP_403_FORBIDDEN)
     
     award_name = (request.data.get('award_name') or '').strip()
     catalog    = (request.data.get('catalog') or '').strip()
+    cpi_cutoff = float(request.data.get('cpi_cutoff', 0))
+    income_ceiling = int(request.data.get('income_ceiling', 0))
+    eligible_programme = (request.data.get('eligible_programme') or 'all').strip()
+    
+    # Optional: allow setting publish_flag directly, default True
+    publish_flag = request.data.get('publish_flag', True)
     
     if not award_name:
         return Response({'detail': 'award_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -769,10 +775,17 @@ def create_award(request):
     award = Award_and_scholarship.objects.create(
         award_name=award_name,
         catalog=catalog,
-        publish_flag=False,  # Start unpublished; convener must explicitly publish
+        publish_flag=publish_flag,
+        cpi_cutoff=cpi_cutoff,
+        income_ceiling=income_ceiling,
+        eligible_programme=eligible_programme,
         version=1,
     )
-    return Response({'id': award.id, 'award_name': award.award_name, 'detail': 'Award created. Set publish_flag=True to make it live.'})
+    return Response({
+        'id': award.id, 
+        'award_name': award.award_name, 
+        'detail': f'Award "{award_name}" created successfully.'
+    })
 
 
 @api_view(['POST'])
