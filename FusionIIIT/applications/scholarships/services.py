@@ -570,6 +570,8 @@ def submit_mcm_api(request):
     
     annual_income = income_father + income_mother + income_other
 
+    application_id = post.get('application_id')
+
     data_insert = {
         'brother_name': brother_name,
         'brother_occupation': brother_occupation,
@@ -657,6 +659,23 @@ def submit_mcm_api(request):
         'aadhar_card',
     )
 
+    # T12: Explicit application_id update
+    if application_id:
+        try:
+            existing_app = Mcm.objects.get(pk=application_id, student=student)
+            # BR-SPACS-002: Safety check
+            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
+            
+            upd = {k: v for k, v in common.items() if k != 'student'}
+            for fk in file_keys:
+                if upd.get(fk) is None:
+                    upd.pop(fk, None)
+            Mcm.objects.filter(pk=application_id).update(status='Submitted', **upd)
+            return {'detail': 'Updated successfully'}
+        except Mcm.DoesNotExist:
+            pass # Fallback to release-based logic if ID is invalid
+
     for release in releases:
         existing = Mcm.objects.select_related('award_id', 'student').filter(
             Q(date__gte=release.startdate, date__lte=release.enddate),
@@ -680,6 +699,7 @@ def submit_mcm_api(request):
             Mcm.objects.create(status='Submitted', **common)
         break
     else:
+        # If no active release but we are here, create anyway (legacy fallback)
         Mcm.objects.create(status='Submitted', **common)
 
     return {'detail': 'Submitted'}
@@ -762,6 +782,46 @@ def submit_director_gold_api(request):
     )
 
     gt = gt_val
+
+    application_id = request.POST.get('application_id')
+    if application_id:
+        try:
+            existing_app = Director_gold.objects.get(pk=application_id, student=student_id)
+            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
+            
+            upd_fields = dict(
+                student=student_id,
+                relevant_document=relevant_document,
+                award_id=award_obj,
+                academic_achievements=academic_achievements,
+                science_inside=science_inside,
+                science_outside=science_outside,
+                games_inside=games_inside,
+                games_outside=games_outside,
+                cultural_inside=cultural_inside,
+                cultural_outside=cultural_outside,
+                social=social,
+                corporate=corporate,
+                hall_activities=hall_activities,
+                gymkhana_activities=gymkhana_activities,
+                institute_activities=institute_activities,
+                counselling_activities=counselling_activities,
+                other_activities=other_activities,
+                correspondence_address=correspondence_address,
+                financial_assistance=financial_assistance,
+                grand_total=gt,
+                nearest_policestation=nearest_policestation,
+                nearest_railwaystation=nearest_railwaystation,
+                justification=justification,
+                status='Submitted',
+            )
+            if upd_fields.get('relevant_document') is None:
+                upd_fields.pop('relevant_document', None)
+            Director_gold.objects.filter(pk=application_id).update(**upd_fields)
+            return {'detail': 'Updated successfully'}
+        except Director_gold.DoesNotExist:
+            pass
 
     for release in releases:
         existing = Director_gold.objects.select_related('student', 'award_id').filter(
@@ -895,6 +955,35 @@ def submit_director_silver_api(request):
     )
 
     gt = gt_silver
+
+    application_id = request.POST.get('application_id')
+    if application_id:
+        try:
+            existing_app = Director_silver.objects.get(pk=application_id, student=student_id)
+            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
+            
+            upd_fields = dict(
+                student=student_id,
+                award_id=award_obj,
+                award_type=award_type,
+                relevant_document=relevant_document,
+                inside_achievements=inside_achievements,
+                justification=justification,
+                correspondence_address=correspondence_address,
+                financial_assistance=financial_assistance,
+                grand_total=gt,
+                nearest_policestation=nearest_policestation,
+                nearest_railwaystation=nearest_railwaystation,
+                outside_achievements=outside_achievements,
+                status='Submitted',
+            )
+            if upd_fields.get('relevant_document') is None:
+                upd_fields.pop('relevant_document', None)
+            Director_silver.objects.filter(pk=application_id).update(**upd_fields)
+            return {'detail': 'Updated successfully'}
+        except Director_silver.DoesNotExist:
+            pass
 
     for release in releases:
         existing = Director_silver.objects.select_related('student', 'award_id').filter(
@@ -1062,6 +1151,21 @@ def submit_proficiency_dm_api(request):
         justification=justification,
         status='Submitted',
     )
+
+    application_id = request.POST.get('application_id')
+    if application_id:
+        try:
+            existing_app = Proficiency_dm.objects.get(pk=application_id, student=student_id)
+            if existing_app.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
+                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
+            
+            upd = dict(base)
+            if upd.get('relevant_document') is None:
+                upd.pop('relevant_document', None)
+            Proficiency_dm.objects.filter(pk=application_id).update(**upd)
+            return {'detail': 'Updated successfully'}
+        except Proficiency_dm.DoesNotExist:
+            pass
 
     for release in releases:
         existing = Proficiency_dm.objects.select_related('student', 'award_id').filter(
