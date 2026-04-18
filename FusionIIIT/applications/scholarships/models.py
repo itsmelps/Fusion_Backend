@@ -137,6 +137,31 @@ class Mcm(models.Model):
         return str(self.student)
 
 
+class SingleParent(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='single_parent_info')
+    father_name = models.CharField(max_length=50, null=True, blank=True)
+    mother_name = models.CharField(max_length=50, null=True, blank=True)
+    single_parent_name = models.CharField(max_length=50, null=True)
+    single_parent_occupation = models.CharField(max_length=100, null=True)
+    annual_income = models.IntegerField(default=0)
+    
+    income_certificate = models.FileField(null=True, blank=True)
+    death_or_divorce_certificate = models.FileField(null=True, blank=True)
+    relevant_proof = models.FileField(null=True, blank=True)
+    aadhar_card = models.FileField(null=True, blank=True)
+    marksheet = models.FileField(null=True, blank=True)
+    
+    status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES, default='INCOMPLETE')
+    date = models.DateField(default=datetime.date.today)
+    award_id = models.ForeignKey(Award_and_scholarship, default=4, on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = 'SingleParent'
+
+    def __str__(self):
+        return str(self.student)
+
+
 class Notional_prize(models.Model):
     spi = models.FloatField()
     cpi = models.FloatField()
@@ -290,6 +315,7 @@ class Withdrawal(models.Model):
         ('gold', "Director's Gold Medal"),
         ('silver', "Director's Silver Medal"),
         ('dm', 'D&M Proficiency Gold Medal'),
+        ('sp', 'Single Parent Scholarship'),
     ]
     scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
     application_id = models.IntegerField()  # PK of the Mcm/Gold/Silver/DM record
@@ -323,6 +349,7 @@ class ApplicationForward(models.Model):
         ('gold', 'Gold'),
         ('silver', 'Silver'),
         ('dm', 'DM'),
+        ('sp', 'Single Parent'),
     ]
     scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
     application_id   = models.IntegerField()
@@ -361,6 +388,7 @@ class ApplicationNote(models.Model):
         ('gold', 'Gold'),
         ('silver', 'Silver'),
         ('dm', 'DM'),
+        ('sp', 'Single Parent'),
     ]
     scholarship_type = models.CharField(max_length=10, choices=SCHOLARSHIP_TYPE_CHOICES)
     application_id   = models.IntegerField()

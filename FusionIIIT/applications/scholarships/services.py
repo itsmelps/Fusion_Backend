@@ -48,6 +48,7 @@ def map_invite_award_to_release(award_ui):
     """Map Fusion-client InviteApplications values to Release.award."""
     mapping = {
         'MCM Scholarship': 'Merit-cum-Means Scholarship',
+        'Single Parent Scholarship': 'Single Parent Scholarship',
         "Director's Silver Medal": 'Convocation Medals',
         "Director's Gold Medal": 'Convocation Medals',
         'D&M Proficiency Gold Medal': 'Convocation Medals',
@@ -97,6 +98,8 @@ def resolve_award_for_submission(post):
     key = raw.lower().replace(' ', '')
     if 'merit' in key and 'mean' in key:
         name = 'Merit-cum-Means Scholarship'
+    elif 'single' in key and 'parent' in key:
+        name = 'Single Parent Scholarship'
     elif "director'sgold" in key or raw == "Director's Gold Medal":
         name = "Director's Gold Medal"
     elif "director'ssilver" in key or raw == "Director's Silver Medal":
@@ -133,6 +136,9 @@ def application_window_payload(award_raw):
     if 'merit' in text and 'mean' in text:
         open_ = selectors.get_active_mcm_releases().exists()
         label = 'Merit-cum-Means Scholarship'
+    elif 'single' in text and 'parent' in text:
+        open_ = Release.objects.filter(award='Single Parent Scholarship').filter(startdate__lte=datetime.datetime.today().strftime('%Y-%m-%d'), enddate__gte=datetime.datetime.today().strftime('%Y-%m-%d')).exists()
+        label = 'Single Parent Scholarship'
     else:
         open_ = selectors.get_active_convocation_releases().exists()
         label = 'Convocation Medals'
@@ -987,5 +993,140 @@ def submit_proficiency_dm_api(request):
         break
     else:
         Proficiency_dm.objects.create(**base)
+
+    return {'detail': 'Submitted'}
+
+def _single_parent_file_urls(sp, request):
+    def u(f):
+        if not f or not getattr(f, 'name', None):
+            return None
+        try:
+            return request.build_absolute_uri(f.url)
+        except Exception:
+            return f.url
+
+    return {
+        'income_certificate': u(sp.income_certificate),
+        'death_or_divorce_certificate': u(getattr(sp, 'death_or_divorce_certificate', None)),
+        'relevant_proof': u(getattr(sp, 'relevant_proof', None)),
+        'aadhar_card': u(getattr(sp, 'aadhar_card', None)),
+        'marksheet': u(getattr(sp, 'marksheet', None)),
+    }
+
+
+def single_parent_applications_list_for_convenor(request):
+    from .models import SingleParent
+    rows = []
+    for sp in SingleParent.objects.filter(status='Forwarded'):
+        stud = sp.student
+        user = stud.id.user
+        rows.append(
+            {
+                'id': sp.id,
+                'student': user.id,
+                'student_name': user.get_full_name() or user.username,
+                'annual_income': sp.annual_income,
+                'status': sp.status,
+                **_single_parent_file_urls(sp, request),
+            }
+        )
+    return rows
+
+
+def single_parent_applications_list_for_assistant(request):
+    from .models import SingleParent
+    rows = []
+    for sp in SingleParent.objects.all():
+        stud = sp.student
+        user = stud.id.user
+        rows.append(
+            {
+                'id': sp.id,
+                'student': user.id,
+                'student_name': user.get_full_name() or user.username,
+                'annual_income': sp.annual_income,
+                'status': sp.status,
+                **_single_parent_file_urls(sp, request),
+            }
+        )
+    return rows
+
+
+def submit_single_parent_api(request):
+    user = request.user
+    post = request.POST
+    files = request.FILES
+    student = user.extrainfo.student
+    award_obj = resolve_award_for_submission(post)
+
+    is_eligible, reason = check_student_eligibility(student, award_obj)
+    if not is_eligible:
+        raise ValueError(f"Eligibility check failed: {reason}")
+        
+    father_name = post.get('father_name')
+    mother_name = post.get('mother_name')
+    single_parent_name = post.get('single_parent_name')
+    single_parent_occupation = post.get('single_parent_occupation')
+    annual_income = _safe_int(post.get('annual_income'))
+
+    income_certificate = files.get('income_certificate')
+    death_or_divorce_certificate = files.get('death_or_divorce_certificate')
+    relevant_proof = files.get('relevant_proof')
+    aadhar_card = files.get('aadhar_card')
+    marksheet = files.get('marksheet')
+
+    common = dict(
+        student=student,
+        father_name=father_name,
+        mother_name=mother_name,
+        single_parent_name=single_parent_name,
+        single_parent_occupation=single_parent_occupation,
+        annual_income=annual_income,
+        award_id=award_obj,
+        income_certificate=income_certificate,
+        death_or_divorce_certificate=death_or_divorce_certificate,
+        relevant_proof=relevant_proof,
+        aadhar_card=aadhar_card,
+        marksheet=marksheet,
+        status='INCOMPLETE',
+    )
+    
+    file_keys = (
+        'income_certificate',
+        'death_or_divorce_certificate',
+        'relevant_proof',
+        'aadhar_card',
+        'marksheet',
+    )
+
+    today = datetime.datetime.today().strftime('%Y-%m-%d')
+    releases = Release.objects.filter(
+        Q(startdate__lte=today, enddate__gte=today),
+        award='Single Parent Scholarship', # Based on map_invite_award_to_release change later 
+    )
+
+    from .models import SingleParent
+    
+    for release in releases:
+        existing = SingleParent.objects.select_related('award_id', 'student').filter(
+            Q(date__gte=release.startdate, date__lte=release.enddate),
+            student=student,
+        )
+        if existing.exists():
+            existing_obj = existing.first()
+            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+                raise ValueError("Your application cannot be modified. It has already been reviewed.")
+                
+            upd = {k: v for k, v in common.items() if k != 'student'}
+            for fk in file_keys:
+                if upd.get(fk) is None:
+                    upd.pop(fk, None)
+            existing.update(status='INCOMPLETE', **upd)
+        else:
+            SingleParent.objects.create(**common)
+        break
+    else:
+        # If no active release, still let them save but it relies on logic in check_application_window
+        SingleParent.objects.create(**common)
 
     return {'detail': 'Submitted'}

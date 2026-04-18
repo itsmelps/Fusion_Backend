@@ -798,3 +798,86 @@ def list_student_documents(request):
         for d in docs
     ]
     return Response(data)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def single_parent_update(request):
+    if not _student(request.user):
+        return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        return Response(services.submit_single_parent_api(request), status=status.HTTP_200_OK)
+    except JsonSchemaValidationError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except Award_and_scholarship.DoesNotExist:
+        return Response({'detail': 'Unknown award'}, status=status.HTTP_400_BAD_REQUEST)
+    except ValueError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def single_parent_list(request):
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
+    
+    if selectors.is_spacs_convenor(request.user):
+        return Response(services.single_parent_applications_list_for_convenor(request))
+    else:
+        return Response(services.single_parent_applications_list_for_assistant(request))
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def single_parent_show(request):
+    if not _student(request.user):
+        return Response({'detail': 'Students only'}, status=status.HTTP_403_FORBIDDEN)
+    
+    student = request.user.extrainfo.student
+    from applications.scholarships.models import SingleParent
+    return Response(services.student_status_rows(SingleParent.objects.filter(student=student)))
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def single_parent_decision(request):
+    """UC-003: SPACS staff updates application status (Accept/Reject/Forward/AskInfo)."""
+    if not _spacs_staff(request.user):
+        return Response({'detail': 'SPACS staff only'}, status=status.HTTP_403_FORBIDDEN)
+    
+    ser = GoldDecisionSerializer(data=request.data)
+    ser.is_valid(raise_exception=True)
+    pk = ser.validated_data['id']
+    action = ser.validated_data['action']
+    note_text = ser.validated_data.get('note')
+    
+    status_map = {
+        'accept': 'Accept',
+        'reject': 'Reject',
+        'forward': 'Forwarded',
+        'ask_info': 'Incomplete'
+    }
+    new_status = status_map.get(action)
+    
+    try:
+        from applications.scholarships.models import SingleParent
+        sp = SingleParent.objects.get(pk=pk)
+        if action == 'forward' and not selectors.is_spacs_assistant(request.user):
+             return Response({'detail': 'Only assistants can forward.'}, status=status.HTTP_403_FORBIDDEN)
+        if action in ('accept', 'reject') and not selectors.is_spacs_convenor(request.user):
+             return Response({'detail': 'Only convenor can finalize.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if note_text:
+            services.add_application_note('sp', pk, note_text, request.user.extrainfo)
+
+        sp.status = new_status
+        sp.save()
+            
+    except Exception as e:
+        return Response({'detail': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response({'detail': 'ok'})
