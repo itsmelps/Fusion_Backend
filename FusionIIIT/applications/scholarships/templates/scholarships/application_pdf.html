@@ -116,22 +116,6 @@
       color: #111;
     }
 
-    /* ── Two-column layout ────────────────────────────── */
-    .two-col {
-      width: 100%;
-    }
-    .two-col td {
-      width: 50%;
-      vertical-align: top;
-      padding: 0 6px 0 0;
-    }
-    .two-col td:last-child {
-      padding: 0 0 0 6px;
-    }
-    .two-col table.data {
-      width: 100%;
-    }
-
     /* ── Footer ───────────────────────────────────────── */
     .pdf-footer {
       margin-top: 30px;
@@ -275,78 +259,37 @@
     </table>
   </div>
 
-  <!-- Siblings -->
+  <!-- Submitted Documents -->
   <div class="section">
-    <div class="section-title">Siblings Information</div>
+    <div class="section-title">Submitted Documents</div>
     <table class="data">
       <tr>
-        <th>Relation</th>
-        <th>Name</th>
-        <th>Occupation</th>
+        <th>Document Type</th>
+        <th>Status</th>
       </tr>
       <tr>
-        <td class="td-label">Brother</td>
-        <td class="td-value">{{ app.brother_name|default:"N/A" }}</td>
-        <td class="td-value">{{ app.brother_occupation|default:"N/A" }}</td>
+        <td class="td-label">Income Certificate</td>
+        <td class="td-value">{% if app.income_certificate %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
       <tr>
-        <td class="td-label">Sister</td>
-        <td class="td-value">{{ app.sister_name|default:"N/A" }}</td>
-        <td class="td-value">{{ app.sister_occupation|default:"N/A" }}</td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- Property & Assets -->
-  <div class="section">
-    <div class="section-title">Property & Assets</div>
-    <table class="data">
-      <tr>
-        <th>Item</th>
-        <th>Details</th>
+        <td class="td-label">Marksheet</td>
+        <td class="td-value">{% if app.marksheet %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
       <tr>
-        <td class="td-label">House Type</td>
-        <td class="td-value">{{ app.house|default:"N/A" }}</td>
+        <td class="td-label">Fee Receipt</td>
+        <td class="td-value">{% if app.fee_receipt %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
       <tr>
-        <td class="td-label">Plot Area</td>
-        <td class="td-value">{{ app.plot_area|default:"0" }} sq ft</td>
+        <td class="td-label">Bank Account Details</td>
+        <td class="td-value">{% if app.bank_details %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
       <tr>
-        <td class="td-label">Constructed Area</td>
-        <td class="td-value">{{ app.constructed_area|default:"0" }} sq ft</td>
+        <td class="td-label">Affidavit</td>
+        <td class="td-value">{% if app.affidavit %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
       <tr>
-        <td class="td-label">Four Wheelers</td>
-        <td class="td-value">{{ app.four_wheeler|default:"0" }} — {{ app.four_wheeler_desc|default:"N/A" }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Two Wheelers</td>
-        <td class="td-value">{{ app.two_wheeler|default:"0" }} — {{ app.two_wheeler_desc|default:"N/A" }}</td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- Education & Loan -->
-  <div class="section">
-    <div class="section-title">Education & Loan Details</div>
-    <table class="data">
-      <tr>
-        <th>Field</th>
-        <th>Value</th>
-      </tr>
-      <tr>
-        <td class="td-label">Previous School</td>
-        <td class="td-value">{{ app.school_name|default:"N/A" }} (Fee: ₹ {{ app.school_fee|default:"0" }})</td>
-      </tr>
-      <tr>
-        <td class="td-label">College</td>
-        <td class="td-value">{{ app.college_name|default:"IIITDMJ" }} (Fee: ₹ {{ app.college_fee|default:"0" }})</td>
-      </tr>
-      <tr>
-        <td class="td-label">Bank (Education Loan)</td>
-        <td class="td-value">{{ app.bank_name|default:"N/A" }} — Loan: ₹ {{ app.loan_amount|default:"0" }}</td>
+        <td class="td-label">Aadhar Card</td>
+        <td class="td-value">{% if app.aadhar_card %}Submitted{% else %}Not Submitted{% endif %}</td>
       </tr>
     </table>
   </div>
