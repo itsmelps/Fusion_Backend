@@ -23,7 +23,9 @@ from .models import (
     Notification,
     Previous_winner,
     Proficiency_dm,
+    Proficiency_dm,
     Release,
+    Withdrawal,
 )
 
 
@@ -56,19 +58,23 @@ def get_active_convocation_releases():
 # ── Applications ──────────────────────────────────────────────────────────────
 
 def get_all_mcm():
-    return Mcm.objects.select_related('award_id', 'student').all()
+    pending_withdrawals = Withdrawal.objects.filter(scholarship_type='mcm', acknowledged=False).values_list('application_id', flat=True)
+    return Mcm.objects.select_related('award_id', 'student').exclude(pk__in=pending_withdrawals)
 
 
 def get_all_gold():
-    return Director_gold.objects.select_related('student', 'award_id').all()
+    pending_withdrawals = Withdrawal.objects.filter(scholarship_type='gold', acknowledged=False).values_list('application_id', flat=True)
+    return Director_gold.objects.select_related('student', 'award_id').exclude(pk__in=pending_withdrawals)
 
 
 def get_all_silver():
-    return Director_silver.objects.select_related('student', 'award_id').all()
+    pending_withdrawals = Withdrawal.objects.filter(scholarship_type='silver', acknowledged=False).values_list('application_id', flat=True)
+    return Director_silver.objects.select_related('student', 'award_id').exclude(pk__in=pending_withdrawals)
 
 
 def get_all_proficiency():
-    return Proficiency_dm.objects.select_related('student', 'award_id').all()
+    pending_withdrawals = Withdrawal.objects.filter(scholarship_type='dm', acknowledged=False).values_list('application_id', flat=True)
+    return Proficiency_dm.objects.select_related('student', 'award_id').exclude(pk__in=pending_withdrawals)
 
 
 def get_mcm_for_student(student):

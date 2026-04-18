@@ -302,8 +302,10 @@ def _mcm_file_urls(mcm, request):
 
 
 def _serialize_mcm(m, request):
+    from .models import Withdrawal
     stud = m.student
     user = stud.id.user
+    is_pending = Withdrawal.objects.filter(application_id=m.id, scholarship_type='mcm', acknowledged=False).exists()
     return {
         'id': m.id,
         'student': user.get_full_name() or user.username,
@@ -342,6 +344,7 @@ def _serialize_mcm(m, request):
         'brother_occupation': m.brother_occupation,
         'sister_name': m.sister_name,
         'sister_occupation': m.sister_occupation,
+        'withdrawal_pending': is_pending,
         **_mcm_file_urls(m, request),
     }
 
@@ -385,6 +388,14 @@ def get_application_notes(scholarship_type, application_id):
 
 
 def _medal_row(obj, request):
+    from .models import Withdrawal, Director_gold, Director_silver, Proficiency_dm
+    
+    stype = 'dm'
+    if isinstance(obj, Director_gold): stype = 'gold'
+    elif isinstance(obj, Director_silver): stype = 'silver'
+    
+    is_pending = Withdrawal.objects.filter(application_id=obj.id, scholarship_type=stype, acknowledged=False).exists()
+    
     data = {
         'id': obj.id,
         'student': obj.student.id.user.get_full_name() or str(obj.student),
@@ -442,6 +453,8 @@ def _medal_row(obj, request):
             'topic_mech': obj.mech_topic,
             'topic_design': obj.design_topic,
         })
+    
+    data['withdrawal_pending'] = is_pending
     return data
 
 

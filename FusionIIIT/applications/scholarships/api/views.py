@@ -491,10 +491,7 @@ def withdraw_application(request):
         reason=reason,
     )
     
-    # Delete the application immediately since student is withdrawing
-    app.delete()
-    
-    return Response({'detail': 'Your withdrawal request has been submitted and the application removed.'})
+    return Response({'detail': 'Your withdrawal request has been submitted and is pending approval.'})
 
 
 # T4: Withdrawal Acknowledgement
@@ -506,7 +503,8 @@ def list_withdrawals(request):
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
     
-    from applications.scholarships.models import Withdrawal
+    from applications.scholarships.models import Withdrawal, Mcm, Director_gold, Director_silver, Proficiency_dm
+    model_map = {'mcm': Mcm, 'gold': Director_gold, 'silver': Director_silver, 'dm': Proficiency_dm}
     pending = Withdrawal.objects.filter(acknowledged=False).select_related('student__id__user')
     data = [
         {
@@ -521,6 +519,28 @@ def list_withdrawals(request):
         }
         for w in pending
     ]
+
+    # Join with application data for "View Details" in frontend
+    for item in data:
+        Model = model_map.get(item['scholarship_type_key'])
+        try:
+            app_obj = Model.objects.get(pk=item['application_id'])
+            # Basic serialization for the detail modal
+            item['application_data'] = {
+                'id': app_obj.id,
+                'status': app_obj.status,
+                'date': app_obj.date.isoformat() if hasattr(app_obj, 'date') else None,
+                'academic_year': getattr(app_obj, 'academic_year', '2024-25'),
+                'semester': getattr(app_obj, 'semester', 1),
+            }
+            # Include more fields for a rich detail view
+            for field in app_obj._meta.fields:
+                val = getattr(app_obj, field.name)
+                if isinstance(val, (str, int, float, bool)) or val is None:
+                    item['application_data'][field.name] = val
+        except:
+            item['application_data'] = None
+
     return Response(data)
 
 
@@ -528,30 +548,36 @@ def list_withdrawals(request):
 @authentication_classes([TokenAuthentication, SessionAuthentication])
 @permission_classes([IsAuthenticated])
 def acknowledge_withdrawal(request):
-    """UC-005: SPACS Assistant acknowledges a withdrawal to close the request. S-CLOSE sub-flow."""
+    """UC-005: SPACS Assistant handles a withdrawal decision (APPROVE/REJECT)."""
     if not _spacs_staff(request.user):
         return Response({'detail': 'SPACS staff only.'}, status=status.HTTP_403_FORBIDDEN)
     
     withdrawal_id = request.data.get('withdrawal_id')
+    action = request.data.get('action', 'approve') # 'approve' or 'reject'
+    
     try:
-        from applications.scholarships.models import Withdrawal
+        from applications.scholarships.models import Withdrawal, Mcm, Director_gold, Director_silver, Proficiency_dm
         import datetime as dt
         w = Withdrawal.objects.select_related('student__id__user').get(pk=withdrawal_id, acknowledged=False)
     except Withdrawal.DoesNotExist:
-        return Response({'detail': 'Withdrawal request not found or already acknowledged.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'detail': 'Withdrawal request not found or already handled.'}, status=status.HTTP_404_NOT_FOUND)
     
-    w.acknowledged = True
-    w.acknowledged_by = request.user.extrainfo
-    w.acknowledged_at = dt.datetime.now()
-    w.save()
+    if action == 'approve':
+        # Delete the target application
+        model_map = {'mcm': Mcm, 'gold': Director_gold, 'silver': Director_silver, 'dm': Proficiency_dm}
+        Model = model_map.get(w.scholarship_type)
+        if Model:
+            Model.objects.filter(pk=w.application_id).delete()
+        
+        # Mark withdrawal as handled and delete it (User requested deletion)
+        w.delete()
+        return Response({'detail': 'Withdrawal approved. Application removed.'})
     
-    # BR-SPACS-008: notify student that withdrawal is acknowledged
-    try:
-        scholarship_portal_notif(request.user, w.student.id.user, 'withdrawal_acknowledged')
-    except Exception:
-        pass
-    
-    return Response({'detail': f'Withdrawal #{withdrawal_id} acknowledged and closed.'})
+    else:
+        # Reject: Just delete the withdrawal request record.
+        # This keeps the application active and "moves it back" to its original list.
+        w.delete()
+        return Response({'detail': 'Withdrawal rejected. Application remains active.'})
 
 
 # T5: Application Download/Print
