@@ -470,15 +470,15 @@ def withdraw_application(request):
     if app.student != student:
         return Response({'detail': 'You can only withdraw your own application.'}, status=status.HTTP_403_FORBIDDEN)
     
-    # BR-SPACS-009: only before review starts (INCOMPLETE = not yet verified by assistant)
-    if app.status in ('Complete', 'Accept', 'Reject'):
+    # BR-SPACS-009: only allow withdrawal if not yet forwarded
+    if app.status != 'Submitted':
         return Response(
             {'detail': f'Withdrawal not allowed. Your application status is "{app.status}". '
-                       'You can only withdraw before the SPACS office begins review.'},
+                       'You can only withdraw before the application is forwarded.'},
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Create withdrawal record (for acknowledgement in UC-005)
+    # Create withdrawal record (for acknowledgement by assistant)
     from applications.scholarships.models import Withdrawal
     Withdrawal.objects.create(
         scholarship_type=scholarship_type,
@@ -487,7 +487,7 @@ def withdraw_application(request):
         reason=reason,
     )
     
-    # Delete the application
+    # Delete the application immediately since student is withdrawing
     app.delete()
     
     return Response({'detail': 'Your withdrawal request has been submitted and the application removed.'})

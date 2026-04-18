@@ -369,8 +369,9 @@ def get_application_notes(scholarship_type, application_id):
 def _medal_row(obj, request):
     return {
         'id': obj.id,
-        'student': obj.student.id.user.id,
+        'student': obj.student.id.user.get_full_name() or str(obj.student),
         'status': obj.status,
+        'date': obj.date.isoformat() if obj.date else None,
         'Marksheet': (
             request.build_absolute_uri(obj.relevant_document.url)
             if obj.relevant_document
@@ -392,7 +393,12 @@ def proficiency_dm_list(request):
 
 
 def student_status_rows(queryset):
-    return [{'id': x.id, 'status': x.status} for x in queryset]
+    return [{
+        'id': x.id,
+        'status': x.status,
+        'student': x.student.id.user.get_full_name() or str(x.student),
+        'date': x.date.isoformat() if x.date else None,
+    } for x in queryset]
 
 
 def previous_winners_payload(programme, year, award_id):
@@ -568,7 +574,7 @@ def submit_mcm_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -578,12 +584,12 @@ def submit_mcm_api(request):
             for fk in file_keys:
                 if upd.get(fk) is None:
                     upd.pop(fk, None)
-            existing.update(status='INCOMPLETE', **upd)
+            existing.update(status='Submitted', **upd)
         else:
-            Mcm.objects.create(status='INCOMPLETE', **common)
+            Mcm.objects.create(status='Submitted', **common)
         break
     else:
-        Mcm.objects.create(status='INCOMPLETE', **common)
+        Mcm.objects.create(status='Submitted', **common)
 
     return {'detail': 'Submitted'}
 
@@ -695,12 +701,12 @@ def submit_director_gold_api(request):
             nearest_policestation=nearest_policestation,
             nearest_railwaystation=nearest_railwaystation,
             justification=justification,
-            status='INCOMPLETE',
+            status='Submitted',
         )
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -737,7 +743,7 @@ def submit_director_gold_api(request):
             nearest_policestation=nearest_policestation,
             nearest_railwaystation=nearest_railwaystation,
             justification=justification,
-            status='INCOMPLETE',
+            status='Submitted',
         )
 
     return {'detail': 'Submitted'}
@@ -817,12 +823,12 @@ def submit_director_silver_api(request):
             nearest_policestation=nearest_policestation,
             nearest_railwaystation=nearest_railwaystation,
             outside_achievements=outside_achievements,
-            status='INCOMPLETE',
+            status='Submitted',
         )
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."
@@ -848,6 +854,7 @@ def submit_director_silver_api(request):
             nearest_policestation=nearest_policestation,
             nearest_railwaystation=nearest_railwaystation,
             outside_achievements=outside_achievements,
+            status='Submitted',
         )
 
     return {'detail': 'Submitted'}
@@ -962,7 +969,7 @@ def submit_proficiency_dm_api(request):
         nearest_policestation=nearest_policestation,
         nearest_railwaystation=nearest_railwaystation,
         justification=justification,
-        status='INCOMPLETE',
+        status='Submitted',
     )
 
     for release in releases:
@@ -973,7 +980,7 @@ def submit_proficiency_dm_api(request):
         if existing.exists():
             existing_obj = existing.first()
             # T2: BR-SPACS-002 - Prevent re-submission of verified applications
-            if existing_obj.status in ('Complete', 'Accept', 'Reject'):
+            if existing_obj.status in ('Submitted', 'Forwarded', 'Accept', 'Reject'):
                 raise ValueError(
                     f"Your application (status: {existing_obj.status}) cannot be modified. "
                     "It has already been reviewed. Contact SPACS office if you need to make changes."

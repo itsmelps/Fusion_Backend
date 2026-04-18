@@ -8,11 +8,11 @@ from applications.globals.models import ExtraInfo
 
 class Constants:
     class StatusChoices(models.TextChoices):
-        COMPLETE   = 'Complete',   'COMPLETE'
+        SUBMITTED  = 'Submitted',  'SUBMITTED'
         INCOMPLETE = 'Incomplete', 'INCOMPLETE'
-        REJECT     = 'Reject',     'REJECT'
-        ACCEPT     = 'Accept',     'ACCEPT'
         FORWARDED  = 'Forwarded',  'FORWARDED'
+        ACCEPT     = 'Accept',     'ACCEPT'
+        REJECT     = 'Reject',     'REJECT'
 
     # Backward-compatible alias — all existing model fields and views continue to work unchanged
     STATUS_CHOICES = StatusChoices.choices
@@ -122,7 +122,7 @@ class Mcm(models.Model):
     bank_details = models.FileField(null=True, blank=True)
     affidavit = models.FileField(null=True, blank=True)
     aadhar_card = models.FileField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES, default='INCOMPLETE')
+    status = models.CharField(max_length=30, choices=Constants.STATUS_CHOICES, default='Incomplete')
     student = models.ForeignKey(Student,
                                 on_delete=models.CASCADE, related_name='mcm_info')
     annual_income = models.IntegerField(default=0)
@@ -204,7 +204,7 @@ class Director_silver(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     award_id = models.ForeignKey(Award_and_scholarship, on_delete=models.CASCADE)
     award_type = models.CharField(max_length=50, null=True)
-    status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES,default='INCOMPLETE')
+    status = models.CharField(max_length=30, choices=Constants.STATUS_CHOICES, default='Incomplete')
     relevant_document = models.FileField(null=True, blank=True)
     date = models.DateField(default=datetime.date.today)
     financial_assistance = models.TextField(max_length=1000 ,null=True)
@@ -224,7 +224,7 @@ class Proficiency_dm(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     award_id = models.ForeignKey(Award_and_scholarship, on_delete=models.CASCADE)
     award_type = models.CharField(max_length=50, null=True)
-    status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES, default='INCOMPLETE')
+    status = models.CharField(max_length=30, choices=Constants.STATUS_CHOICES, default='Incomplete')
     no_of_students = models.IntegerField(default=1)
     date = models.DateField(default=datetime.date.today)
     roll_no1 = models.IntegerField(default=0)
@@ -255,7 +255,7 @@ class Proficiency_dm(models.Model):
 
 class Director_gold(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
-    status = models.CharField(max_length=10, choices=Constants.STATUS_CHOICES, default='INCOMPLETE')
+    status = models.CharField(max_length=30, choices=Constants.STATUS_CHOICES, default='Incomplete')
     relevant_document = models.FileField(null=True, blank=True)
     date = models.DateField(default=datetime.date.today)
     award_id = models.ForeignKey(Award_and_scholarship, default=4, on_delete=models.CASCADE)
