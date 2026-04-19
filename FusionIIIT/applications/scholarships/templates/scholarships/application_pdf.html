@@ -165,320 +165,51 @@
       </tr>
       <tr>
         <td class="ib-label">Student Name:</td>
-        <td class="ib-value">{{ student.id.user.get_full_name }}</td>
+        <td class="ib-value">{{ student_name }}</td>
         <td class="ib-label">Roll Number:</td>
-        <td class="ib-value">{{ student.id }}</td>
+        <td class="ib-value">{{ roll_number }}</td>
       </tr>
       <tr>
         <td class="ib-label">Programme:</td>
-        <td class="ib-value">{{ student.programme }}</td>
+        <td class="ib-value">{{ programme }}</td>
         <td class="ib-label">Date Submitted:</td>
-        <td class="ib-value">{{ app.date }}</td>
+        <td class="ib-value">{{ submitted_on }}</td>
       </tr>
     </table>
   </div>
 
-  {% if scholarship_type == 'mcm' %}
-  <!-- ══════════════════════════════════════════════════════
-       MCM SCHOLARSHIP
-       ══════════════════════════════════════════════════════ -->
-
-  <!-- Academic Info -->
   <div class="section">
-    <div class="section-title">Academic Information</div>
+    <div class="section-title">Application Details</div>
     <table class="data">
       <tr>
         <th>Field</th>
         <th>Value</th>
       </tr>
+      {% for row in application_fields %}
       <tr>
-        <td class="td-label">Category</td>
-        <td class="td-value">{{ app.category|default:"N/A" }}</td>
+        <td class="td-label">{{ row.label }}</td>
+        <td class="td-value">{{ row.value }}</td>
       </tr>
-      <tr>
-        <td class="td-label">CPI</td>
-        <td class="td-value">{{ app.cpi }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Academic Year</td>
-        <td class="td-value">{{ app.academic_year|default:"N/A" }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Semester</td>
-        <td class="td-value">{{ app.semester|default:"N/A" }}</td>
-      </tr>
+      {% endfor %}
     </table>
   </div>
 
-  <!-- Family Income -->
+  {% if document_fields %}
   <div class="section">
-    <div class="section-title">Family Income Details</div>
+    <div class="section-title">Uploaded Documents</div>
     <table class="data">
       <tr>
-        <th>Source</th>
-        <th>Annual Amount (₹)</th>
-      </tr>
-      <tr>
-        <td class="td-label">Father's Income</td>
-        <td class="td-value">₹ {{ app.income_father|default:"0" }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Mother's Income</td>
-        <td class="td-value">₹ {{ app.income_mother|default:"0" }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Other Sources</td>
-        <td class="td-value">₹ {{ app.income_other|default:"0" }}</td>
-      </tr>
-      <tr style="background: #dbeafe;">
-        <td class="td-label"><strong>Total Annual Income</strong></td>
-        <td class="td-value"><strong>₹ {{ app.annual_income }}</strong></td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- Parent Occupation -->
-  <div class="section">
-    <div class="section-title">Parent Occupation</div>
-    <table class="data">
-      <tr>
-        <th>Parent</th>
-        <th>Occupation</th>
-        <th>Details</th>
-      </tr>
-      <tr>
-        <td class="td-label">Father</td>
-        <td class="td-value">{{ app.father_occ|default:"N/A" }}</td>
-        <td class="td-value">{{ app.father_occ_desc|default:"N/A" }}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Mother</td>
-        <td class="td-value">{{ app.mother_occ|default:"N/A" }}</td>
-        <td class="td-value">{{ app.mother_occ_desc|default:"N/A" }}</td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- Submitted Documents -->
-  <div class="section">
-    <div class="section-title">Submitted Documents</div>
-    <table class="data">
-      <tr>
-        <th>Document Type</th>
+        <th>Document</th>
         <th>Status</th>
       </tr>
+      {% for doc in document_fields %}
       <tr>
-        <td class="td-label">Income Certificate</td>
-        <td class="td-value">{% if app.income_certificate %}Submitted{% else %}Not Submitted{% endif %}</td>
+        <td class="td-label">{{ doc.label }}</td>
+        <td class="td-value">{{ doc.status }}</td>
       </tr>
-      <tr>
-        <td class="td-label">Marksheet</td>
-        <td class="td-value">{% if app.marksheet %}Submitted{% else %}Not Submitted{% endif %}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Fee Receipt</td>
-        <td class="td-value">{% if app.fee_receipt %}Submitted{% else %}Not Submitted{% endif %}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Bank Account Details</td>
-        <td class="td-value">{% if app.bank_details %}Submitted{% else %}Not Submitted{% endif %}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Affidavit</td>
-        <td class="td-value">{% if app.affidavit %}Submitted{% else %}Not Submitted{% endif %}</td>
-      </tr>
-      <tr>
-        <td class="td-label">Aadhar Card</td>
-        <td class="td-value">{% if app.aadhar_card %}Submitted{% else %}Not Submitted{% endif %}</td>
-      </tr>
+      {% endfor %}
     </table>
   </div>
-
-  <!-- Remarks -->
-  {% if app.remarks %}
-  <div class="section">
-    <div class="section-title">Additional Remarks</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.remarks }}
-    </p>
-  </div>
-  {% endif %}
-
-  {% elif scholarship_type == 'gold' %}
-  <!-- ══════════════════════════════════════════════════════
-       DIRECTOR'S GOLD MEDAL
-       ══════════════════════════════════════════════════════ -->
-  <div class="section">
-    <div class="section-title">Academic Achievements</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.academic_achievements|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Science & Technology Activities</div>
-    <table class="data">
-      <tr><th>Scope</th><th>Details</th></tr>
-      <tr><td class="td-label">Inside Institute</td><td class="td-value">{{ app.science_inside|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Outside Institute</td><td class="td-value">{{ app.science_outside|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Games & Sports</div>
-    <table class="data">
-      <tr><th>Scope</th><th>Details</th></tr>
-      <tr><td class="td-label">Inside Institute</td><td class="td-value">{{ app.games_inside|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Outside Institute</td><td class="td-value">{{ app.games_outside|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Cultural Activities</div>
-    <table class="data">
-      <tr><th>Scope</th><th>Details</th></tr>
-      <tr><td class="td-label">Inside Institute</td><td class="td-value">{{ app.cultural_inside|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Outside Institute</td><td class="td-value">{{ app.cultural_outside|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Other Activities & Service</div>
-    <table class="data">
-      <tr><th>Category</th><th>Details</th></tr>
-      <tr><td class="td-label">Social Service</td><td class="td-value">{{ app.social|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Corporate Life</td><td class="td-value">{{ app.corporate|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Hall Activities</td><td class="td-value">{{ app.hall_activities|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Gymkhana Activities</td><td class="td-value">{{ app.gymkhana_activities|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Institute Activities</td><td class="td-value">{{ app.institute_activities|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Counselling Activities</td><td class="td-value">{{ app.counselling_activities|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Other Activities</td><td class="td-value">{{ app.other_activities|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Personal & Financial</div>
-    <table class="data">
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td class="td-label">Correspondence Address</td><td class="td-value">{{ app.correspondence_address|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Financial Assistance</td><td class="td-value">{{ app.financial_assistance|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Grand Total</td><td class="td-value">{{ app.grand_total|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Police Station</td><td class="td-value">{{ app.nearest_policestation|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Railway Station</td><td class="td-value">{{ app.nearest_railwaystation|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  {% if app.justification %}
-  <div class="section">
-    <div class="section-title">Justification</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.justification }}
-    </p>
-  </div>
-  {% endif %}
-
-  {% elif scholarship_type == 'silver' %}
-  <!-- ══════════════════════════════════════════════════════
-       DIRECTOR'S SILVER MEDAL
-       ══════════════════════════════════════════════════════ -->
-  <div class="section">
-    <div class="section-title">Achievements Inside Institute</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.inside_achievements|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Achievements Outside Institute</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.outside_achievements|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Justification</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.justification|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Personal & Financial</div>
-    <table class="data">
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td class="td-label">Correspondence Address</td><td class="td-value">{{ app.correspondence_address|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Financial Assistance</td><td class="td-value">{{ app.financial_assistance|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Grand Total</td><td class="td-value">{{ app.grand_total|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Police Station</td><td class="td-value">{{ app.nearest_policestation|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Railway Station</td><td class="td-value">{{ app.nearest_railwaystation|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
-  {% elif scholarship_type == 'dm' %}
-  <!-- ══════════════════════════════════════════════════════
-       D&M PROFICIENCY GOLD MEDAL
-       ══════════════════════════════════════════════════════ -->
-  <div class="section">
-    <div class="section-title">Project Details</div>
-    <table class="data">
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td class="td-label">Project Title</td><td class="td-value">{{ app.title_name|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Award Type</td><td class="td-value">{{ app.award_type|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Number of Students</td><td class="td-value">{{ app.no_of_students }}</td></tr>
-    </table>
-  </div>
-
-  {% if app.no_of_students > 1 %}
-  <div class="section">
-    <div class="section-title">Team Members (Roll Numbers)</div>
-    <table class="data">
-      <tr><th>#</th><th>Roll Number</th></tr>
-      {% if app.roll_no1 %}<tr><td>1</td><td>{{ app.roll_no1 }}</td></tr>{% endif %}
-      {% if app.roll_no2 %}<tr><td>2</td><td>{{ app.roll_no2 }}</td></tr>{% endif %}
-      {% if app.roll_no3 %}<tr><td>3</td><td>{{ app.roll_no3 }}</td></tr>{% endif %}
-      {% if app.roll_no4 %}<tr><td>4</td><td>{{ app.roll_no4 }}</td></tr>{% endif %}
-      {% if app.roll_no5 %}<tr><td>5</td><td>{{ app.roll_no5 }}</td></tr>{% endif %}
-    </table>
-  </div>
-  {% endif %}
-
-  <div class="section">
-    <div class="section-title">Department-wise Topic & Percentage</div>
-    <table class="data">
-      <tr><th>Department</th><th>Topic</th><th>Percentage</th></tr>
-      <tr><td class="td-label">ECE</td><td>{{ app.ece_topic|default:"N/A" }}</td><td>{{ app.ece_percentage|default:"0" }}%</td></tr>
-      <tr><td class="td-label">CSE</td><td>{{ app.cse_topic|default:"N/A" }}</td><td>{{ app.cse_percentage|default:"0" }}%</td></tr>
-      <tr><td class="td-label">Mechanical</td><td>{{ app.mech_topic|default:"N/A" }}</td><td>{{ app.mech_percentage|default:"0" }}%</td></tr>
-      <tr><td class="td-label">Design</td><td>{{ app.design_topic|default:"N/A" }}</td><td>{{ app.design_percentage|default:"0" }}%</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Brief Description</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.brief_description|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Justification</div>
-    <p style="padding: 6px 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
-      {{ app.justification|default:"Not provided" }}
-    </p>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Personal & Financial</div>
-    <table class="data">
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td class="td-label">Correspondence Address</td><td class="td-value">{{ app.correspondence_address|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Financial Assistance</td><td class="td-value">{{ app.financial_assistance|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Grand Total</td><td class="td-value">{{ app.grand_total|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Police Station</td><td class="td-value">{{ app.nearest_policestation|default:"N/A" }}</td></tr>
-      <tr><td class="td-label">Nearest Railway Station</td><td class="td-value">{{ app.nearest_railwaystation|default:"N/A" }}</td></tr>
-    </table>
-  </div>
-
   {% endif %}
 
   <!-- ── Signature Block ─────────────────────────────── -->

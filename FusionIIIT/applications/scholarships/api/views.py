@@ -2,6 +2,7 @@ import datetime
 
 from jsonschema import ValidationError as JsonSchemaValidationError
 
+from django.db import models as django_models
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.decorators import (
@@ -36,6 +37,29 @@ def _student(user):
 
 def _spacs_staff(user):
     return selectors.is_spacs_convenor(user) or selectors.is_spacs_assistant(user)
+
+
+def _humanize_field_name(name):
+    return name.replace('_', ' ').strip().title()
+
+
+def _format_field_value(app, field):
+    raw_value = getattr(app, field.name, None)
+    if raw_value in (None, ''):
+        return 'N/A'
+
+    if isinstance(field, django_models.FileField):
+        return 'Submitted'
+
+    if isinstance(field, django_models.DateField):
+        return raw_value.strftime('%d %b %Y')
+
+    if field.choices:
+        display_method = getattr(app, f'get_{field.name}_display', None)
+        if callable(display_method):
+            return display_method()
+
+    return str(raw_value)
 
 
 @api_view(['POST'])
@@ -610,12 +634,75 @@ def download_application_pdf(request):
     if not is_owner and not _spacs_staff(request.user):
         return Response({'detail': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
     
-    # Build context dict with all application fields
+    # Build a stable, complete, and consistent field map for rendering.
+    excluded_fields = {'id', 'student', 'award_id'}
+    preferred_order = {
+        'mcm': [
+            'category', 'cpi', 'academic_year', 'semester',
+            'income_father', 'income_mother', 'income_other', 'annual_income',
+            'father_occ', 'father_occ_desc', 'mother_occ', 'mother_occ_desc',
+            'remarks',
+        ],
+        'gold': [
+            'academic_achievements', 'science_inside', 'science_outside',
+            'games_inside', 'games_outside', 'cultural_inside', 'cultural_outside',
+            'social', 'corporate', 'hall_activities', 'gymkhana_activities',
+            'institute_activities', 'counselling_activities', 'other_activities',
+            'justification', 'correspondence_address', 'financial_assistance',
+            'grand_total', 'nearest_policestation', 'nearest_railwaystation',
+        ],
+        'silver': [
+            'inside_achievements', 'outside_achievements', 'justification',
+            'correspondence_address', 'financial_assistance', 'grand_total',
+            'nearest_policestation', 'nearest_railwaystation',
+        ],
+        'dm': [
+            'title_name', 'award_type', 'no_of_students', 'roll_no1', 'roll_no2',
+            'roll_no3', 'roll_no4', 'roll_no5', 'ece_topic', 'ece_percentage',
+            'cse_topic', 'cse_percentage', 'mech_topic', 'mech_percentage',
+            'design_topic', 'design_percentage', 'brief_description', 'justification',
+            'correspondence_address', 'financial_assistance', 'grand_total',
+            'nearest_policestation', 'nearest_railwaystation',
+        ],
+    }
+    ordered = preferred_order.get(scholarship_type, [])
+
+    fields_by_name = {field.name: field for field in app._meta.fields}
+    application_fields = []
+    used = set()
+    for field_name in ordered:
+        field = fields_by_name.get(field_name)
+        if not field:
+            continue
+        used.add(field_name)
+        application_fields.append({
+            'label': _humanize_field_name(field_name),
+            'value': _format_field_value(app, field),
+        })
+
+    document_fields = []
+    for field in app._meta.fields:
+        if not isinstance(field, django_models.FileField):
+            continue
+        raw_value = getattr(app, field.name, None)
+        document_fields.append({
+            'label': _humanize_field_name(field.name),
+            'status': 'Submitted' if raw_value else 'Not Submitted',
+        })
+
+    student_name = app.student.id.user.get_full_name() or app.student.id.user.username
+    submitted_on = app.date.strftime('%d %b %Y') if getattr(app, 'date', None) else 'N/A'
     context = {
         'app': app,
         'student': app.student,
         'award': app.award_id,
         'scholarship_type': scholarship_type,
+        'student_name': student_name,
+        'roll_number': str(app.student.id_id),
+        'programme': getattr(app.student, 'programme', 'N/A'),
+        'submitted_on': submitted_on,
+        'application_fields': application_fields,
+        'document_fields': document_fields,
         'generated_at': datetime.date.today().strftime('%d %B %Y'),
     }
     
