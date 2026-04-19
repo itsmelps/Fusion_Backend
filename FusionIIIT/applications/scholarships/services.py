@@ -306,11 +306,12 @@ def _mcm_file_urls(mcm, request):
 
     return {
         'income_certificate': u(mcm.income_certificate),
-        'Marksheet': u(getattr(mcm, 'marksheet', None)),
-        'Fee_Receipt': u(getattr(mcm, 'fee_receipt', None)),
-        'Bank_details': u(getattr(mcm, 'bank_details', None)),
-        'Affidavit': u(getattr(mcm, 'affidavit', None)),
-        'Aadhar_card': u(getattr(mcm, 'aadhar_card', None)),
+        'forms': u(getattr(mcm, 'forms', None)),
+        'marksheet': u(getattr(mcm, 'marksheet', None)),
+        'fee_receipt': u(getattr(mcm, 'fee_receipt', None)),
+        'bank_details': u(getattr(mcm, 'bank_details', None)),
+        'affidavit': u(getattr(mcm, 'affidavit', None)),
+        'aadhar_card': u(getattr(mcm, 'aadhar_card', None)),
     }
 
 
@@ -568,11 +569,12 @@ def submit_mcm_api(request):
     loan_amount = post.get('loan_amount')
     bank_name = post.get('bank_name')
     income_certificate = files.get('income_certificate')
-    marksheet = files.get('Marksheet')
-    fee_receipt = files.get('Fee_Receipt')
-    bank_details = files.get('Bank_details')
-    affidavit = files.get('Affidavit')
-    aadhar_card = files.get('Aadhar_card')
+    forms = files.get('forms')
+    marksheet = files.get('marksheet') or files.get('Marksheet')
+    fee_receipt = files.get('fee_receipt') or files.get('Fee_Receipt')
+    bank_details = files.get('bank_details') or files.get('Bank_details')
+    affidavit = files.get('affidavit') or files.get('Affidavit')
+    aadhar_card = files.get('aadhar_card') or files.get('Aadhar_card')
     
     # New fields
     academic_year = post.get('academic_year')
@@ -657,6 +659,7 @@ def submit_mcm_api(request):
         student=student,
         annual_income=annual_income,
         income_certificate=income_certificate,
+        forms=forms,
         award_id=award_obj,
         father_occ_desc=father_occ_desc,
         mother_occ_desc=mother_occ_desc,
@@ -687,6 +690,7 @@ def submit_mcm_api(request):
 
     file_keys = (
         'income_certificate',
+        'forms',
         'marksheet',
         'fee_receipt',
         'bank_details',
@@ -699,17 +703,23 @@ def submit_mcm_api(request):
         try:
             existing_app = Mcm.objects.get(pk=application_id, student=student)
             # BR-SPACS-002: Safety check
-            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
-                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
-            
-            upd = {k: v for k, v in common.items() if k != 'student'}
-            for fk in file_keys:
-                if upd.get(fk) is None:
-                    upd.pop(fk, None)
-            Mcm.objects.filter(pk=application_id).update(status='Submitted', **upd)
-            return {'detail': 'Updated successfully'}
+            if existing_app.status in ("Forwarded", "Accept", "Reject"):
+                raise ValueError(
+                    f"Application #{application_id} (status: {existing_app.status}) cannot be modified."
+                )
+
+            # Update fields and save
+            for k, v in common.items():
+                if k == "student":
+                    continue
+                if v is None and k in file_keys:
+                    continue
+                setattr(existing_app, k, v)
+            existing_app.status = "Submitted"
+            existing_app.save()
+            return {"detail": "Updated successfully"}
         except Mcm.DoesNotExist:
-            pass # Fallback to release-based logic if ID is invalid
+            pass  # Fallback to release-based logic if ID is invalid
 
     # Robust duplicate check based on award and academic_year (not just release dates)
     existing = Mcm.objects.filter(
@@ -721,20 +731,23 @@ def submit_mcm_api(request):
     if existing.exists():
         existing_obj = existing.first()
         # Strictly prevent multiple applications
-        if existing_obj.status != 'Incomplete':
-             msg = "You have already submitted an application for this scholarship."
-             if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
-                 msg += f" (Status: {existing_obj.status}). It can no longer be modified."
-             else:
-                 msg += " Please withdraw it first if you wish to re-submit."
-             raise ValueError(msg)
-        
+        if existing_obj.status != "Incomplete":
+            msg = "You have already submitted an application for this scholarship."
+            if existing_obj.status in ("Forwarded", "Accept", "Reject"):
+                msg += f" (Status: {existing_obj.status}). It can no longer be modified."
+            else:
+                msg += " Please withdraw it first if you wish to re-submit."
+            raise ValueError(msg)
+
         # Only update if still INCOMPLETE
-        upd = {k: v for k, v in common.items() if k != 'student'}
-        for fk in file_keys:
-            if upd.get(fk) is None:
-                upd.pop(fk, None)
-        existing.update(status='Submitted', **upd)
+        for k, v in common.items():
+            if k == "student":
+                continue
+            if v is None and k in file_keys:
+                continue
+            setattr(existing_obj, k, v)
+        existing_obj.status = "Submitted"
+        existing_obj.save()
     else:
         Mcm.objects.create(status='Submitted', **common)
 
@@ -748,7 +761,7 @@ def submit_director_gold_api(request):
         n.invite_convocation_accept_flag = False
         n.save(update_fields=['invite_convocation_accept_flag'])
 
-    relevant_document = files.get('Marksheet') or files.get('myfile')
+    relevant_document = files.get('relevant_document') or files.get('marksheet') or files.get('Marksheet') or files.get('myfile')
     award_obj = resolve_award_for_submission(request.POST)
     student_id = user.extrainfo.student
 
@@ -854,10 +867,12 @@ def submit_director_gold_api(request):
                  msg += " Please withdraw it first if you wish to re-submit."
              raise ValueError(msg)
         
-        upd = dict(fields)
-        if upd.get('relevant_document') is None:
-            upd.pop('relevant_document', None)
-        existing.update(**upd)
+        # Update fields and save
+        for k, v in fields.items():
+            if k == "relevant_document" and v is None:
+                continue
+            setattr(existing_obj, k, v)
+        existing_obj.save()
     else:
         Director_gold.objects.create(**fields)
 
@@ -875,7 +890,7 @@ def submit_director_silver_api(request):
         n.invite_convocation_accept_flag = False
         n.save(update_fields=['invite_convocation_accept_flag'])
 
-    relevant_document = files.get('Marksheet') or files.get('myfile')
+    relevant_document = files.get('relevant_document') or files.get('marksheet') or files.get('Marksheet') or files.get('myfile')
     award_obj = resolve_award_for_submission(post)
     award_type = post.get('award-type') or post.get('award_type')
     student_id = user.extrainfo.student
@@ -913,10 +928,12 @@ def submit_director_silver_api(request):
                  msg += " Please withdraw it first if you wish to re-submit."
              raise ValueError(msg)
         
-        upd = dict(fields)
-        if upd.get('relevant_document') is None:
-            upd.pop('relevant_document', None)
-        existing.update(**upd)
+        # Update fields and save
+        for k, v in fields.items():
+            if k == "relevant_document" and v is None:
+                continue
+            setattr(existing_obj, k, v)
+        existing_obj.save()
     else:
         Director_silver.objects.create(**fields)
 
@@ -945,7 +962,7 @@ def submit_proficiency_dm_api(request):
 
     title_name = post.get('title') or post.get('title_name')
     no_of_students = _safe_int(post.get('students') or post.get('no_of_students'), 1)
-    relevant_document = files.get('Marksheet') or files.get('myfile')
+    relevant_document = files.get('relevant_document') or files.get('marksheet') or files.get('Marksheet') or files.get('myfile')
     award_obj = resolve_award_for_submission(post)
     award_type = post.get('award-type') or post.get('award_type')
     student_id = user.extrainfo.student
@@ -1030,18 +1047,23 @@ def submit_proficiency_dm_api(request):
         status='Submitted',
     )
 
-    application_id = request.POST.get('application_id')
     if application_id:
         try:
-            existing_app = Proficiency_dm.objects.get(pk=application_id, student=student_id)
-            if existing_app.status in ('Forwarded', 'Accept', 'Reject'):
-                 raise ValueError(f"Application #{application_id} (status: {existing_app.status}) cannot be modified.")
-            
-            upd = dict(base)
-            if upd.get('relevant_document') is None:
-                upd.pop('relevant_document', None)
-            Proficiency_dm.objects.filter(pk=application_id).update(**upd)
-            return {'detail': 'Updated successfully'}
+            existing_app = Proficiency_dm.objects.get(
+                pk=application_id, student=student_id
+            )
+            if existing_app.status in ("Forwarded", "Accept", "Reject"):
+                raise ValueError(
+                    f"Application #{application_id} (status: {existing_app.status}) cannot be modified."
+                )
+
+            # Update fields and save
+            for k, v in base.items():
+                if k == "relevant_document" and v is None:
+                    continue
+                setattr(existing_app, k, v)
+            existing_app.save()
+            return {"detail": "Updated successfully"}
         except Proficiency_dm.DoesNotExist:
             pass
 
@@ -1054,18 +1076,20 @@ def submit_proficiency_dm_api(request):
     if existing.exists():
         existing_obj = existing.first()
         # Strictly prevent multiple applications
-        if existing_obj.status != 'Incomplete':
-             msg = "You have already submitted an application for this scholarship."
-             if existing_obj.status in ('Forwarded', 'Accept', 'Reject'):
-                 msg += f" (Status: {existing_obj.status}). It can no longer be modified."
-             else:
-                 msg += " Please withdraw it first if you wish to re-submit."
-             raise ValueError(msg)
-        
-        upd = dict(base)
-        if upd.get('relevant_document') is None:
-            upd.pop('relevant_document', None)
-        existing.update(**upd)
+        if existing_obj.status != "Incomplete":
+            msg = "You have already submitted an application for this scholarship."
+            if existing_obj.status in ("Forwarded", "Accept", "Reject"):
+                msg += f" (Status: {existing_obj.status}). It can no longer be modified."
+            else:
+                msg += " Please withdraw it first if you wish to re-submit."
+            raise ValueError(msg)
+
+        # Update fields and save
+        for k, v in base.items():
+            if k == "relevant_document" and v is None:
+                continue
+            setattr(existing_obj, k, v)
+        existing_obj.save()
     else:
         Proficiency_dm.objects.create(**base)
 
